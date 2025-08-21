@@ -1,24 +1,24 @@
 # main.py
 # Основной файл приложения
 
-# main.py               Точка входа, основной UI, обработчики событий, управление потоком данных между модулями. Использует все остальные модули.
-# state.py              Централизованное место для глобального состояния (settings).
-# settings.py           Все, что касается настроек: константы, загрузка, сохранение. Инициализирует state.settings.
-# data_processing.py    Логика обработки данных (даты, время, чтение файлов).
-# ui_components.py      Компоненты UI (ToolTip, create_record). Использует функции из data_processing и настройки из state.
-# file_operations.py    Все операции с файлами (открытие, сохранение TXT/Excel). Использует настройки из state.
-
-
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import os
-
-# Импортируем модули
+import subprocess
+import platform
+# === НОВЫЙ ИМПОРТ ===
+import configparser
+import sys  # Для определения пути к .exe
+# === НОВЫЕ ИМПОРТЫ ===
 import state # Для доступа к глобальным настройкам
 import settings # Для загрузки/сохранения настроек
 import data_processing # Для функций обработки данных
 import ui_components # Для компонентов UI
 import file_operations # Для операций с файлами
+import statistic # === НОВЫЙ ИМПОРТ ДЛЯ СТАТИСТИКИ ===
+# === /НОВЫЕ ИМПОРТЫ ===
+# from openpyxl import load_workbook, Workbook
+# from openpyxl.styles import Alignment
 
 # === ОСНОВНОЕ ОКНО ПРИЛОЖЕНИЯ ===
 root = tk.Tk()
@@ -238,6 +238,10 @@ tk.Button(bottom_frame, text="📊 Открыть таблицу", command=file_
 tk.Button(bottom_frame, text="⚙️ Настройки", command=open_settings, bg="#9C27B0", fg="white").pack(side="left", padx=2)
 tk.Button(bottom_frame, text="➕ Добавить запись", command=lambda: create_record_wrapper(scrollable_frame), bg="#FF9800", fg="white").pack(side="left", padx=2)
 tk.Button(bottom_frame, text="💾 Сохранить всё", command=save_all, bg="#009688", fg="white").pack(side="left", padx=2)
+# === НОВАЯ КНОПКА СТАТИСТИКИ ===
+# Передаем ссылку на главное окно (root) в функцию show_statistics
+tk.Button(bottom_frame, text="📊 Статистика", command=lambda: statistic.show_statistics(root), bg="#FF5722", fg="white").pack(side="left", padx=2)
+# === /НОВАЯ КНОПКА СТАТИСТИКИ ===
 
 # === ФРЕЙМ ДЛЯ ОТОБРАЖЕНИЯ ПОСЛЕДНИХ ЗАДАЧ ===
 last_tasks_frame = tk.LabelFrame(root, text="Последние задачи", padx=5, pady=5)
