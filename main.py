@@ -19,6 +19,7 @@ import settings # Для загрузки/сохранения настроек
 import data_processing # Для функций обработки данных
 import ui_components # Для компонентов UI
 import file_operations # Для операций с файлами
+import statistic #импорт статистики
 
 # === ОСНОВНОЕ ОКНО ПРИЛОЖЕНИЯ ===
 root = tk.Tk()
@@ -99,6 +100,7 @@ def open_settings():
     count_frame = tk.Frame(settings_frame)
     count_frame.pack(anchor="w", padx=40, pady=2)
     tk.Label(count_frame, text="Количество (1-50):").pack(side="left")  # Изменено на 50
+
     # Используем Spinbox для ограничения ввода чисел в диапазоне 1-50
     count_spinbox = tk.Spinbox(count_frame, from_=1, to=50, width=5)  # Изменено на 50
     count_spinbox.pack(side="left", padx=(5, 0))
@@ -150,6 +152,83 @@ def open_settings():
         # === /НОВОЕ ===
         # === НОВОЕ: ОБНОВЛЯЕМ ОТОБРАЖЕНИЕ ПОСЛЕДНИХ ЗАДАЧ ===
         update_last_tasks_display()
+
+####################################### 
+
+# === ФУНКЦИЯ: ОТОБРАЖЕНИЕ СТАТИСТИКИ ===
+def show_statistics():
+    """Собирает и отображает статистику во всплывающем окне в виде таблицы."""
+    import statistic # Импортируем внутри функции
+    
+    # 1. Вызов функции сбора статистики
+    stats_result = statistic.get_task_statistics()
+
+    # 2. Создание нового окна для отображения
+    stats_window = tk.Toplevel(root)
+    stats_window.title("Статистика")
+    stats_window.geometry("500x350") # Установите желаемый размер
+    stats_window.resizable(True, True)
+    stats_window.grab_set() # Делает окно модальным
+    stats_window.focus_set()
+
+    # 3. Создание виджета Treeview для таблицы
+    columns = ('Показатель', 'Прошлый день', 'Текущий день')
+    tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=12)
+
+    # Определение заголовков
+    tree.heading('Показатель', text='Показатель')
+    tree.heading('Прошлый день', text='Прошлый день')
+    tree.heading('Текущий день', text='Текущий день')
+
+    # Настройка ширин колонок
+    tree.column('Показатель', width=200, anchor='w')
+    tree.column('Прошлый день', width=120, anchor='center')
+    tree.column('Текущий день', width=120, anchor='center')
+
+    # Добавление скроллбара
+    scrollbar = ttk.Scrollbar(stats_window, orient=tk.VERTICAL, command=tree.yview)
+    tree.configure(yscroll=scrollbar.set)
+
+    # 4. Заполнение таблицы данными
+    if stats_result['error']:
+        # Если произошла ошибка, показываем её в таблице
+        tree.insert('', tk.END, values=('Ошибка получения статистики:', '', ''))
+        tree.insert('', tk.END, values=(stats_result['error'], '', ''))
+        tree.config(style="Error.Treeview") # Опционально: стиль для ошибки
+    else:
+        # Если данные получены успешно
+        previous = stats_result['previous_day']
+        current = stats_result['current_day']
+
+        # Добавляем строки в таблицу
+        tree.insert('', tk.END, values=('Всего записей:', previous['count'], current['count']))
+        tree.insert('', tk.END, values=('Сумма сложностей:', previous['total_difficulty'], current['total_difficulty']))
+        
+        # Для статистики по типам задач, сначала соберем все уникальные типы
+        all_task_types = set(previous['difficulty_by_type'].keys()) | set(current['difficulty_by_type'].keys())
+        
+        if all_task_types:
+             tree.insert('', tk.END, values=('', '', '')) # Пустая строка-разделитель
+             tree.insert('', tk.END, values=('Сложность по типам:', '', ''))
+             for task_type in sorted(all_task_types): # Сортируем для порядка
+                prev_diff = previous['difficulty_by_type'].get(task_type, 0)
+                curr_diff = current['difficulty_by_type'].get(task_type, 0)
+                tree.insert('', tk.END, values=(f"  - {task_type}", prev_diff, curr_diff))
+        else:
+             tree.insert('', tk.END, values=('Сложность по типам:', 'Нет данных', 'Нет данных'))
+
+    # 5. Размещение виджетов в окне
+    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=10)
+
+    # Опционально: можно добавить стиль для выделения заголовков или строк
+    # style = ttk.Style()
+    # style.configure("Treeview.Heading", font=('Arial', 10, 'bold'))
+
+
+#######################################
+
+
 
     # Фрейм для кнопки сохранить, чтобы она была прижата внизу
     button_frame = tk.Frame(settings_frame)
@@ -233,11 +312,13 @@ bottom_frame.pack(pady=5, padx=10, fill="x")
 
 # === КНОПКИ В НИЖНЕМ ФРЕЙМЕ ===
 # Передаем функции из других модулей
-tk.Button(bottom_frame, text="📂 Открыть текст", command=file_operations.open_text, bg="#2196F3", fg="white").pack(side="left", padx=2)
-tk.Button(bottom_frame, text="📊 Открыть таблицу", command=file_operations.open_excel, bg="#4CAF50", fg="white").pack(side="left", padx=2)
-tk.Button(bottom_frame, text="⚙️ Настройки", command=open_settings, bg="#9C27B0", fg="white").pack(side="left", padx=2)
-tk.Button(bottom_frame, text="➕ Добавить запись", command=lambda: create_record_wrapper(scrollable_frame), bg="#FF9800", fg="white").pack(side="left", padx=2)
-tk.Button(bottom_frame, text="💾 Сохранить всё", command=save_all, bg="#009688", fg="white").pack(side="left", padx=2)
+tk.Button(bottom_frame, text="📂 Открыть текст",    command=file_operations.open_text, bg="#2196F3", fg="white").pack(side="left", padx=2)
+tk.Button(bottom_frame, text="📊 Открыть таблицу",  command=file_operations.open_excel, bg="#4CAF50", fg="white").pack(side="left", padx=2)
+tk.Button(bottom_frame, text="⚙️ Настройки",        command=open_settings, bg="#9C27B0", fg="white").pack(side="left", padx=2)
+tk.Button(bottom_frame, text="➕ Добавить запись",  command=lambda: create_record_wrapper(scrollable_frame), bg="#FF9800", fg="white").pack(side="left", padx=2)
+tk.Button(bottom_frame, text="💾 Сохранить всё",    command=save_all, bg="#009688", fg="white").pack(side="left", padx=2)
+tk.Button(bottom_frame, text="📊 Статистика",       command=show_statistics, bg="#FF5722", fg="white").pack(side="left", padx=2)
+
 
 # === ФРЕЙМ ДЛЯ ОТОБРАЖЕНИЯ ПОСЛЕДНИХ ЗАДАЧ ===
 last_tasks_frame = tk.LabelFrame(root, text="Последние задачи", padx=5, pady=5)
