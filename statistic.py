@@ -1,9 +1,11 @@
 # statistic.py
-# Функции для сбора статистики из сохраненных данных
+# Функции для сбора и отображения статистики
 
 import os
 from datetime import datetime, timedelta
 from openpyxl import load_workbook
+import tkinter as tk
+from tkinter import ttk
 import state  # Для доступа к пути Excel-файла из настроек
 
 # Предполагаемые индексы колонок в Excel (с 1, как в Excel)
@@ -35,23 +37,15 @@ def _parse_date_cached(date_value):
 def get_task_statistics():
     """
     Считает статистику по записям из Excel-файла.
+    Возвращает только дни, за которые есть хотя бы одна запись.
     
     Возвращает словарь с ключами:
-    - 'current_day': {'count': int, 'total_difficulty': int, 'difficulty_by_type': dict}
-    - 'previous_day': {'count': int, 'total_difficulty': int, 'difficulty_by_type': dict}
+    - 'days_data': dict, где ключ - дата (datetime.date), значение - dict со статистикой по этой дате
+                   {'count': int, 'total_difficulty': int, 'difficulty_by_type': dict}
     - 'error': str or None (если ошибка произошла)
     """
     stats = {
-        'current_day': {
-            'count': 0,
-            'total_difficulty': 0,
-            'difficulty_by_type': {}
-        },
-        'previous_day': {
-            'count': 0,
-            'total_difficulty': 0,
-            'difficulty_by_type': {}
-        },
+        'days_data': {},  # Словарь для хранения данных по дням с записями
         'error': None
     }
 
@@ -79,10 +73,6 @@ def get_task_statistics():
         wb = load_workbook(xlsx_path_value, read_only=True, data_only=True)
         ws = wb.active
 
-        # Определяем сегодняшнюю и вчерашнюю даты
-        today = datetime.now().date()
-        yesterday = today - timedelta(days=1)
-
         # Пропускаем заголовок, если он есть
         start_row = 1
         if ws.max_row > 0:
@@ -91,10 +81,8 @@ def get_task_statistics():
                 start_row = 2
 
         # Используем iter_rows для более эффективного чтения
-        # Ограничиваем количество читаемых колонок для ускорения
-        # max_col=DIFFICULTY_COL_INDEX предполагает, что нужные данные находятся в первых нескольких колонках
         for row in ws.iter_rows(min_row=start_row, values_only=True, max_col=DIFFICULTY_COL_INDEX):
-            # Получаем дату из кортежа (индекс DATE_COL_INDEX - 1, так как values_only возвращает кортеж с 0)
+            # Получаем дату из кортежа
             date_cell_value = row[DATE_COL_INDEX - 1] if len(row) >= DATE_COL_INDEX else None
             if not date_cell_value:
                 continue
@@ -102,8 +90,8 @@ def get_task_statistics():
             # Используем кэшированную функцию парсинга даты
             record_date = _parse_date_cached(date_cell_value)
 
-            # Если дата не распознана или не относится к сегодня/вчера, пропускаем
-            if record_date is None or (record_date != today and record_date != yesterday):
+            # Если дата не распознана, пропускаем
+            if record_date is None:
                 continue
 
             # Получаем вид задачи и сложность из кортежа
@@ -117,16 +105,21 @@ def get_task_statistics():
             except (ValueError, TypeError):
                 difficulty = 0
 
-            # Определяем, к какому дню относится запись
-            target_day_key = 'current_day' if record_date == today else 'previous_day'
+            # Инициализируем структуру для этой даты, если она еще не существует
+            if record_date not in stats['days_data']:
+                stats['days_data'][record_date] = {
+                    'count': 0,
+                    'total_difficulty': 0,
+                    'difficulty_by_type': {}
+                }
+
+            # Обновляем статистику для этой даты
+            stats['days_data'][record_date]['count'] += 1
+            stats['days_data'][record_date]['total_difficulty'] += difficulty
             
-            # Обновляем статистику
-            stats[target_day_key]['count'] += 1
-            stats[target_day_key]['total_difficulty'] += difficulty
-            
-            if task_type not in stats[target_day_key]['difficulty_by_type']:
-                stats[target_day_key]['difficulty_by_type'][task_type] = 0
-            stats[target_day_key]['difficulty_by_type'][task_type] += difficulty
+            if task_type not in stats['days_data'][record_date]['difficulty_by_type']:
+                stats['days_data'][record_date]['difficulty_by_type'][task_type] = 0
+            stats['days_data'][record_date]['difficulty_by_type'][task_type] += difficulty
 
     except Exception as e:
         stats['error'] = f"Ошибка при чтении Excel-файла: {e}"
@@ -136,6 +129,115 @@ def get_task_statistics():
 
     return stats
 
-# Пример использования
-if __name__ == "__main__":
-    pass
+def show_statistics(parent_window):
+    """
+    Собирает и отображает статистику во всплывающем окне в виде таблицы.
+    Отображаются только дни, за которые есть записи.
+    parent_window: ссылка на главное окно приложения (root), 
+                   необходима для создания Toplevel.
+    """
+    # 1. Вызов функции сбора статистики
+    stats_result = get_task_statistics()
+
+    # 2. Создание нового окна для отображения
+    stats_window = tk.Toplevel(parent_window)
+    stats_window.title("Статистика")
+    stats_window.geometry("550x250")  # Увеличен размер для пяти колонок
+    stats_window.resizable(True, True)
+    stats_window.grab_set() # Делает окно модальным
+    stats_window.focus_set()
+
+    # 3. Определяем сегодняшнюю дату для сортировки
+    today = datetime.now().date()
+    
+    # 4. Создание виджета Treeview для таблицы
+    # Получаем список дат с записями и сортируем их по убыванию (новые даты первые)
+    if stats_result['error']:
+        # Если ошибка, создаем таблицу с одной колонкой для отображения сообщения
+        columns = ('Показатель',)
+        tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=5)
+        tree.heading('Показатель', text='Показатель')
+        tree.column('Показатель', width=400, anchor='w')
+    else:
+        days_with_data = sorted(stats_result['days_data'].keys(), reverse=True)
+        
+        # Ограничиваем количество отображаемых дней до 5 последних
+        days_to_show = days_with_data[:5]
+        
+        if not days_to_show:
+            # Если нет дней с данными, создаем таблицу с одной колонкой
+            columns = ('Показатель',)
+            tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=5)
+            tree.heading('Показатель', text='Показатель')
+            tree.column('Показатель', width=400, anchor='w')
+        else:
+            # Форматируем даты в строку dd.mm.yyyy для заголовков
+            date_columns = [date.strftime("%d.%m.%Y") for date in days_to_show]
+            columns = ('Показатель',) + tuple(date_columns)
+            
+            tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=18)
+            
+            # Определение заголовков
+            tree.heading('Показатель', text='Показатель')
+            for date_str in date_columns:
+                tree.heading(date_str, text=date_str)
+            
+            # Настройка ширин колонок
+            tree.column('Показатель', width=150, anchor='w')
+            for date_str in date_columns:
+                tree.column(date_str, width=50, anchor='center')
+
+    # Добавление скроллбара
+    scrollbar = ttk.Scrollbar(stats_window, orient=tk.VERTICAL, command=tree.yview)
+    tree.configure(yscroll=scrollbar.set)
+
+    # 5. Заполнение таблицы данными
+    if stats_result['error']:
+        # Если произошла ошибка, показываем её в таблице
+        tree.insert('', tk.END, values=('Ошибка получения статистики:',))
+        tree.insert('', tk.END, values=(stats_result['error'],))
+    else:
+        days_with_data = sorted(stats_result['days_data'].keys(), reverse=True)
+        days_to_show = days_with_data[:5]
+        
+        if not days_to_show:
+            # Если нет дней с данными
+            tree.insert('', tk.END, values=('Нет данных для отображения',))
+        else:
+            # Подготавливаем данные для отображения
+            days_data = stats_result['days_data']
+            
+            # Собираем все уникальные типы задач из отображаемых дней
+            all_task_types = set()
+            for day in days_to_show:
+                all_task_types.update(days_data[day]['difficulty_by_type'].keys())
+            
+            # Добавляем строки в таблицу
+            # Всего записей
+            row_values = ['Всего записей:']
+            for day in days_to_show:
+                row_values.append(days_data[day]['count'])
+            tree.insert('', tk.END, values=tuple(row_values))
+            
+            # Сумма сложностей
+            row_values = ['Сумма сложностей:']
+            for day in days_to_show:
+                row_values.append(days_data[day]['total_difficulty'])
+            tree.insert('', tk.END, values=tuple(row_values))
+            
+            # Сложность по типам
+            if all_task_types:
+                 tree.insert('', tk.END, values=('',) * (len(days_to_show) + 1)) # Пустая строка-разделитель
+                 tree.insert('', tk.END, values=('Сложность по типам:',) + ('',) * len(days_to_show))
+                 for task_type in sorted(all_task_types): # Сортируем для порядка
+                    row_values = [f"  - {task_type}"]
+                    for day in days_to_show:
+                        difficulty = days_data[day]['difficulty_by_type'].get(task_type, 0)
+                        row_values.append(difficulty)
+                    tree.insert('', tk.END, values=tuple(row_values))
+            else:
+                 tree.insert('', tk.END, values=('Сложность по типам:',) + ('Нет данных',) * len(days_to_show))
+
+    # 6. Размещение виджетов в окне
+    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=10)
