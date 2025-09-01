@@ -1,17 +1,21 @@
 # settings.py
 # Настройки по умолчанию и работа с settings.ini
-
 import os
 import sys
 import configparser
 import tkinter as tk
-import state # Импортируем для доступа к state.settings
+import state  # Импортируем для доступа к state.settings
 
 # === НАСТРОЙКИ ПО УМОЛЧАНИЮ ===
 # Используем сырые строки (r"") для путей, чтобы избежать проблем с обратными слэшами
 DEFAULT_TXT_PATH = r"d:\Илья\Криста\Скрипт для записи фото рабочего дня ежедневно\через python\Фотодня.txt"
 DEFAULT_XLSX_PATH = r"d:\Илья\Криста\Скрипт для записи фото рабочего дня ежедневно\через python\Фотодня.xlsx"
 DEFAULT_OLD_TASKS_COUNT = 5  # Количество последних задач по умолчанию
+
+# Новые настройки по умолчанию для Google Sheets
+DEFAULT_SAVE_GOOGLE_SHEETS = False  # По умолчанию выключено
+DEFAULT_GOOGLE_SPREADSHEET_ID = ""  # Пустой ID по умолчанию
+DEFAULT_GOOGLE_SHEET_NAME = "Sheet1"  # Имя листа по умолчанию
 
 # Новое: Стиль выбора сложности по умолчанию
 DEFAULT_DIFFICULTY_STYLE = "buttons"
@@ -41,6 +45,11 @@ def load_settings_from_ini(root):
         "old_tasks_count": tk.IntVar(master=root, value=DEFAULT_OLD_TASKS_COUNT),
         # Новое: Переменная для стиля сложности
         "difficulty_style": tk.StringVar(master=root, value=DEFAULT_DIFFICULTY_STYLE),
+        # === НОВОЕ: НАСТРОЙКИ ДЛЯ GOOGLE SHEETS ===
+        "save_google_sheets": tk.BooleanVar(master=root, value=DEFAULT_SAVE_GOOGLE_SHEETS),
+        "google_spreadsheet_id": tk.StringVar(master=root, value=DEFAULT_GOOGLE_SPREADSHEET_ID),
+        "google_sheet_name": tk.StringVar(master=root, value=DEFAULT_GOOGLE_SHEET_NAME),
+        # === /НОВОЕ ===
     }
     
     if os.path.exists(settings_path):
@@ -73,6 +82,14 @@ def load_settings_from_ini(root):
                         state.settings["difficulty_style"].set(style_value)
                     else:
                         state.settings["difficulty_style"].set(DEFAULT_DIFFICULTY_STYLE) # значение по умолчанию
+                # === НОВОЕ: ЗАГРУЗКА НАСТРОЕК GOOGLE SHEETS ===
+                if 'save_google_sheets' in section:
+                    state.settings["save_google_sheets"].set(section.getboolean('save_google_sheets'))
+                if 'google_spreadsheet_id' in section:
+                    state.settings["google_spreadsheet_id"].set(section['google_spreadsheet_id'])
+                if 'google_sheet_name' in section:
+                    state.settings["google_sheet_name"].set(section['google_sheet_name'])
+                # === /НОВОЕ ===
                         
             print(f"Настройки загружены из {settings_path}") # Для отладки
         except Exception as e:
@@ -94,6 +111,11 @@ def save_settings_to_ini():
         'old_tasks_count': str(state.settings["old_tasks_count"].get()),
         # Новое: Сохранение стиля сложности
         'difficulty_style': state.settings["difficulty_style"].get(),
+        # === НОВОЕ: СОХРАНЕНИЕ НАСТРОЕК GOOGLE SHEETS ===
+        'save_google_sheets': str(state.settings["save_google_sheets"].get()),
+        'google_spreadsheet_id': state.settings["google_spreadsheet_id"].get(),
+        'google_sheet_name': state.settings["google_sheet_name"].get(),
+        # === /НОВОЕ ===
     }
     
     try:
