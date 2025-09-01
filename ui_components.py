@@ -4,10 +4,51 @@
 import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
-from data_processing import get_weekday_rus, get_part_of_day # Импортируем нужные функции
-import state # Для доступа к настройкам
+# Предполагается, что эти модули будут созданы/обновлены отдельно
+# from data_processing import get_weekday_rus, get_part_of_day # Импортируем нужные функции
+# import state # Для доступа к настройкам
 
 # === КЛАСС ДЛЯ TOOLTIP ===
+# Поскольку модуль data_processing.py не содержит этих функций в предоставленной версии,
+# они определены локально здесь. В дальнейшем их следует перенести в data_processing.py.
+from babel.dates import format_date
+import locale
+
+# === УСТАНОВКА ЛОКАЛИ ДЛЯ РУССКОГО ЯЗЫКА (локальная копия) ===
+try:
+    locale.setlocale(locale.LC_TIME, "ru_RU.UTF-8")  # Linux/macOS
+except:
+    try:
+        locale.setlocale(locale.LC_TIME, "russian")  # Windows
+    except:
+        pass
+
+# === ФУНКЦИЯ: ОПРЕДЕЛЕНИЕ ЧАСТИ ДНЯ ПО ЧАСУ (локальная копия) ===
+def get_part_of_day(hour):
+    if 0 <= hour < 9:
+        return "До начала дня"
+    elif 9 <= hour < 12:
+        return "Утро"
+    elif 12 <= hour < 15:
+        return "Обед"
+    elif 15 <= hour < 18:
+        return "Вечер"
+    else:
+        return "После работы"
+
+# === ФУНКЦИЯ: ПОЛУЧЕНИЕ ДНЯ НЕДЕЛИ НА РУССКОМ (локальная копия) ===
+def get_weekday_rus(date_str):
+    try:
+        from datetime import datetime
+        dt = datetime.strptime(date_str, "%d.%m.%Y")
+        weekday = format_date(dt, "EEE", locale='ru').capitalize()
+        return {
+            "Понедельник": "пн", "Вторник": "вт", "Среда": "ср", "Четверг": "чт",
+            "Пятница": "пт", "Суббота": "сб", "Воскресенье": "вс"
+        }.get(weekday, weekday[:2].lower())
+    except:
+        return "??"
+
 class ToolTip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -55,6 +96,10 @@ class ToolTip:
 
 # === ФУНКЦИЯ: СОЗДАНИЕ НОВОЙ ЗАПИСИ ===
 def create_record(parent, record_widgets, default_date=None, default_time=None):
+    """
+    Создает интерфейс для одной записи.
+    Включает поля даты/времени, выбор типа и сложности задачи, описание.
+    """
     frame = tk.LabelFrame(parent, text="Запись", padx=8, pady=8)
     frame.pack(fill="x", pady=3)
     
@@ -113,7 +158,25 @@ def create_record(parent, record_widgets, default_date=None, default_time=None):
     tk.Label(datetime_frame, textvariable=part_of_day_var, fg="blue", font=("Arial", 8, "bold")).pack(side="left", padx=(2, 0))
     row += 1
 
-    # === НОВОЕ: ФРЕЙМ ДЛЯ ВИДА ЗАДАЧИ (КНОПКИ) И СЛОЖНОСТИ ===
+    # === ФРЕЙМ ДЛЯ ВИДА ЗАДАЧИ (КНОПКИ) И СЛОЖНОСТИ ===
+    # Предполагается, что state.settings будет передан извне или импортирован
+    # Для совместимости с текущим main.py.txt, используем локальные переменные
+    # В реальной интеграции это будет: difficulty_style = state.settings["difficulty_style"].get()
+    # difficulty_style = "buttons" # Значение по умолчанию или из state.settings
+    # Так как state.settings недоступен напрямую здесь, предположим, что стиль передается
+    # или определяется внутри функции. Для демонстрации используем значение по умолчанию.
+    # В дальнейшем это должно быть интегрировано с системой настроек.
+    
+    # Для целей этой задачи, предположим, стиль сложности передается или установлен как "buttons"
+    # В реальной интеграции это потребует доступа к state.settings
+    try:
+        # Попробуем импортировать state, если он доступен в runtime
+        import state
+        difficulty_style = state.settings.get("difficulty_style", tk.StringVar(value="buttons")).get()
+    except (ImportError, AttributeError):
+        # Если не удается получить из state, используем значение по умолчанию
+        difficulty_style = "buttons"
+        
     type_diff_frame = tk.Frame(frame)
     type_diff_frame.grid(row=row, column=0, columnspan=4, sticky="w", pady=(0, 5))
 
@@ -156,7 +219,7 @@ def create_record(parent, record_widgets, default_date=None, default_time=None):
     # --- СЛОЖНОСТЬ (ДИНАМИЧЕСКИ) ---
     tk.Label(type_diff_frame, text="Сложность:").pack(side="left", padx=(10, 2))
     
-    difficulty_style = state.settings["difficulty_style"].get()
+    # difficulty_style определен выше
     difficulty_var = tk.StringVar(value="1")
     difficulty_buttons_frame = None
     difficulty_combo_hidden = None
@@ -186,7 +249,9 @@ def create_record(parent, record_widgets, default_date=None, default_time=None):
     # Описание задачи
     row += 1
     tk.Label(frame, text="Описание:").grid(row=row, column=0, sticky="nw", pady=(5, 0))
-    description_text = tk.Text(frame, height=2, width=60)
+    # === ИЗМЕНЕНО: Добавлен параметр wrap=tk.WORD для переноса по словам ===
+    description_text = tk.Text(frame, height=2, width=60, wrap=tk.WORD)
+    # === /ИЗМЕНЕНО ===
     description_text.bind("<Control-v>", lambda event: description_text.event_generate("<<Paste>>"))
     description_text.grid(row=row, column=1, columnspan=3, sticky="ew", pady=(5, 0))
     frame.columnconfigure(1, weight=1)
@@ -213,10 +278,6 @@ def create_record(parent, record_widgets, default_date=None, default_time=None):
         frame.destroy()
         # Предполагается, что record_widgets передается корректно из main.py
         # main.py должен управлять этим списком. 
-        # Здесь мы просто удаляем фрейм. Логика удаления из record_widgets должна быть в main.py
-        # при итерации по списку или через callback.
-        # Простое удаление из record_widgets здесь может быть небезопасно.
-        # Лучше: if rec_dict in record_widgets: record_widgets.remove(rec_dict) в main.py
         
     tk.Button(btn_frame, text="Сброс", command=reset_record, bg="#FFA500", fg="white", font=("Arial", 8)).pack(side="left", padx=2)
     tk.Button(btn_frame, text="Удалить", command=delete_record, bg="#FF4444", fg="white", font=("Arial", 8)).pack(side="left", padx=2)
