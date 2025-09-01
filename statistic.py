@@ -7,11 +7,15 @@ from openpyxl import load_workbook
 import tkinter as tk
 from tkinter import ttk
 import state  # Для доступа к пути Excel-файла из настроек
+import settings # Для сохранения настроек
 
 # Предполагаемые индексы колонок в Excel (с 1, как в Excel)
 DATE_COL_INDEX = 1      # Колонка "Дата"
 TASK_TYPE_COL_INDEX = 5 # Колонка "Вид задачи"
 DIFFICULTY_COL_INDEX = 7 # Колонка "Сложность"
+
+# Значение по умолчанию для размера статистики
+DEFAULT_STATISTIC_SIZE = 5
 
 # Кэширование распарсенных дат для ускорения
 _date_cache = {}
@@ -142,40 +146,175 @@ def show_statistics(parent_window):
     # 2. Создание нового окна для отображения
     stats_window = tk.Toplevel(parent_window)
     stats_window.title("Статистика")
-    stats_window.geometry("550x250")  # Увеличен размер для пяти колонок
+    stats_window.geometry("600x350")
     stats_window.resizable(True, True)
     stats_window.grab_set() # Делает окно модальным
     stats_window.focus_set()
 
-    # 3. Определяем сегодняшнюю дату для сортировки
-    today = datetime.now().date()
+    # 3. === ИЗМЕНЕНО: Получаем statistic_size из settings.ini или используем значение по умолчанию ===
+    # Загружаем настройки из settings.ini
+    settings_path = settings.get_settings_path()
+    statistic_size = DEFAULT_STATISTIC_SIZE  # Значение по умолчанию
     
-    # 4. Создание виджета Treeview для таблицы
-    # Получаем список дат с записями и сортируем их по убыванию (новые даты первые)
+    if os.path.exists(settings_path):
+        import configparser
+        config = configparser.ConfigParser()
+        config.optionxform = str
+        try:
+            config.read(settings_path, encoding='utf-8')
+            if 'Settings' in config:
+                section = config['Settings']
+                if 'statistic_size' in section:
+                    try:
+                        statistic_size = int(section['statistic_size'])
+                        # Проверка на допустимый диапазон
+                        if statistic_size < 1:
+                            statistic_size = 1
+                        elif statistic_size > 30:
+                            statistic_size = 30
+                    except ValueError:
+                        statistic_size = DEFAULT_STATISTIC_SIZE
+        except Exception as e:
+            print(f"Ошибка при чтении настроек для статистики: {e}")
+    
+    # Переменная для хранения количества дней для отображения
+    statistic_size_var = tk.IntVar(value=statistic_size)
+
+    # 4. Создание фрейма для элементов управления количеством дней
+    control_frame = tk.Frame(stats_window)
+    control_frame.pack(fill="x", padx=10, pady=(10, 5))
+    
+    tk.Label(control_frame, text="Показать дней:").pack(side="left")
+    statistic_size_entry = tk.Entry(control_frame, textvariable=statistic_size_var, width=5)
+    statistic_size_entry.pack(side="left", padx=(5, 5))
+    
+    # Функция для обновления таблицы с новым количеством дней
+    def update_table():
+        # Получаем новое количество дней
+        try:
+            current_statistic_size = statistic_size_var.get()
+            if current_statistic_size < 1:
+                current_statistic_size = 1
+                statistic_size_var.set(1)
+            elif current_statistic_size > 30:  # Ограничение на случай очень большого числа
+                current_statistic_size = 30
+                statistic_size_var.set(30)
+        except tk.TclError:
+            current_statistic_size = DEFAULT_STATISTIC_SIZE
+            statistic_size_var.set(DEFAULT_STATISTIC_SIZE)
+            
+        # === ИЗМЕНЕНО: Сохраняем statistic_size в settings.ini ===
+        settings_path = settings.get_settings_path()
+        if os.path.exists(settings_path):
+            import configparser
+            config = configparser.ConfigParser()
+            config.optionxform = str
+            try:
+                config.read(settings_path, encoding='utf-8')
+                if 'Settings' not in config:
+                    config['Settings'] = {}
+                config['Settings']['statistic_size'] = str(current_statistic_size)
+                with open(settings_path, 'w', encoding='utf-8') as configfile:
+                    config.write(configfile)
+                print(f"Настройка statistic_size сохранена в {settings_path}")
+            except Exception as e:
+                print(f"Ошибка при сохранении настройки statistic_size: {e}")
+        # === /ИЗМЕНЕНО ===
+            
+        # Обновляем отображение данных
+        if stats_result['error']:
+            # Очищаем таблицу
+            for item in tree.get_children():
+                tree.delete(item)
+            tree.insert('', tk.END, values=('Ошибка получения статистики:',))
+        else:
+            days_with_data = sorted(stats_result['days_data'].keys(), reverse=True)
+            days_to_show_list = days_with_data[:current_statistic_size]
+            
+            # Очищаем таблицу
+            for item in tree.get_children():
+                tree.delete(item)
+                
+            if not days_to_show_list:
+                tree.insert('', tk.END, values=('Нет данных для отображения',))
+            else:
+                # Подготавливаем данные для отображения
+                days_data = stats_result['days_data']
+                
+                # Собираем все уникальные типы задач из отображаемых дней
+                all_task_types = set()
+                for day in days_to_show_list:
+                    all_task_types.update(days_data[day]['difficulty_by_type'].keys())
+                
+                # Обновляем заголовки колонок
+                date_columns = [date.strftime("%d.%m.%Y") for date in days_to_show_list]
+                columns = ('Показатель',) + tuple(date_columns)
+                
+                # Обновляем столбцы в treeview
+                tree.configure(columns=columns)
+                tree.heading('Показатель', text='Показатель')
+                for date_str in date_columns:
+                    tree.heading(date_str, text=date_str)
+                
+                # Настройка ширин колонок
+                tree.column('Показатель', width=150, anchor='w')
+                for date_str in date_columns:
+                    tree.column(date_str, width=70, anchor='center') # Увеличена ширина для лучшей читаемости
+                
+                # Добавляем строки в таблицу
+                # Всего записей
+                row_values = ['Всего записей:']
+                for day in days_to_show_list:
+                    row_values.append(days_data[day]['count'])
+                tree.insert('', tk.END, values=tuple(row_values))
+                
+                # Сумма сложностей
+                row_values = ['Сумма сложностей:']
+                for day in days_to_show_list:
+                    row_values.append(days_data[day]['total_difficulty'])
+                tree.insert('', tk.END, values=tuple(row_values))
+                
+                # Сложность по типам
+                if all_task_types:
+                     tree.insert('', tk.END, values=('',) * (len(days_to_show_list) + 1)) # Пустая строка-разделитель
+                     tree.insert('', tk.END, values=('Сложность по типам:',) + ('',) * len(days_to_show_list))
+                     for task_type in sorted(all_task_types): # Сортируем для порядка
+                        row_values = [f"  - {task_type}"]
+                        for day in days_to_show_list:
+                            difficulty = days_data[day]['difficulty_by_type'].get(task_type, 0)
+                            row_values.append(difficulty)
+                        tree.insert('', tk.END, values=tuple(row_values))
+                else:
+                     tree.insert('', tk.END, values=('Сложность по типам:',) + ('Нет данных',) * len(days_to_show_list))
+
+    # Кнопка "Применить" с зеленой галочкой
+    apply_button = tk.Button(control_frame, text=" ✓ ", command=update_table, bg="#4CAF50", fg="white")
+    apply_button.pack(side="left", padx=(5, 0))
+
+    # 5. Создание виджета Treeview для таблицы
     if stats_result['error']:
         # Если ошибка, создаем таблицу с одной колонкой для отображения сообщения
         columns = ('Показатель',)
         tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=5)
         tree.heading('Показатель', text='Показатель')
-        tree.column('Показатель', width=400, anchor='w')
+        tree.column('Показатель', width=550, anchor='w')
     else:
         days_with_data = sorted(stats_result['days_data'].keys(), reverse=True)
+        # === ИЗМЕНЕНО: Используем statistic_size_var.get() вместо days_to_show_default ===
+        days_to_show_list = days_with_data[:statistic_size_var.get()]
         
-        # Ограничиваем количество отображаемых дней до 5 последних
-        days_to_show = days_with_data[:5]
-        
-        if not days_to_show:
+        if not days_to_show_list:
             # Если нет дней с данными, создаем таблицу с одной колонкой
             columns = ('Показатель',)
             tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=5)
             tree.heading('Показатель', text='Показатель')
-            tree.column('Показатель', width=400, anchor='w')
+            tree.column('Показатель', width=550, anchor='w')
         else:
             # Форматируем даты в строку dd.mm.yyyy для заголовков
-            date_columns = [date.strftime("%d.%m.%Y") for date in days_to_show]
+            date_columns = [date.strftime("%d.%m.%Y") for date in days_to_show_list]
             columns = ('Показатель',) + tuple(date_columns)
             
-            tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=18)
+            tree = ttk.Treeview(stats_window, columns=columns, show='headings', height=12) # Уменьшена высота
             
             # Определение заголовков
             tree.heading('Показатель', text='Показатель')
@@ -185,23 +324,21 @@ def show_statistics(parent_window):
             # Настройка ширин колонок
             tree.column('Показатель', width=150, anchor='w')
             for date_str in date_columns:
-                tree.column(date_str, width=50, anchor='center')
+                tree.column(date_str, width=70, anchor='center') # Увеличена ширина
 
     # Добавление скроллбара
     scrollbar = ttk.Scrollbar(stats_window, orient=tk.VERTICAL, command=tree.yview)
     tree.configure(yscroll=scrollbar.set)
 
-    # 5. Заполнение таблицы данными
+    # 6. Заполнение таблицы данными (начальное отображение)
     if stats_result['error']:
-        # Если произошла ошибка, показываем её в таблице
         tree.insert('', tk.END, values=('Ошибка получения статистики:',))
-        tree.insert('', tk.END, values=(stats_result['error'],))
     else:
+        # === ИЗМЕНЕНО: Используем statistic_size_var.get() для начального отображения ===
         days_with_data = sorted(stats_result['days_data'].keys(), reverse=True)
-        days_to_show = days_with_data[:5]
+        days_to_show_list = days_with_data[:statistic_size_var.get()]
         
-        if not days_to_show:
-            # Если нет дней с данными
+        if not days_to_show_list:
             tree.insert('', tk.END, values=('Нет данных для отображения',))
         else:
             # Подготавливаем данные для отображения
@@ -209,35 +346,35 @@ def show_statistics(parent_window):
             
             # Собираем все уникальные типы задач из отображаемых дней
             all_task_types = set()
-            for day in days_to_show:
+            for day in days_to_show_list:
                 all_task_types.update(days_data[day]['difficulty_by_type'].keys())
             
             # Добавляем строки в таблицу
             # Всего записей
             row_values = ['Всего записей:']
-            for day in days_to_show:
+            for day in days_to_show_list:
                 row_values.append(days_data[day]['count'])
             tree.insert('', tk.END, values=tuple(row_values))
             
             # Сумма сложностей
             row_values = ['Сумма сложностей:']
-            for day in days_to_show:
+            for day in days_to_show_list:
                 row_values.append(days_data[day]['total_difficulty'])
             tree.insert('', tk.END, values=tuple(row_values))
             
             # Сложность по типам
             if all_task_types:
-                 tree.insert('', tk.END, values=('',) * (len(days_to_show) + 1)) # Пустая строка-разделитель
-                 tree.insert('', tk.END, values=('Сложность по типам:',) + ('',) * len(days_to_show))
+                 tree.insert('', tk.END, values=('',) * (len(days_to_show_list) + 1)) # Пустая строка-разделитель
+                 tree.insert('', tk.END, values=('Сложность по типам:',) + ('',) * len(days_to_show_list))
                  for task_type in sorted(all_task_types): # Сортируем для порядка
                     row_values = [f"  - {task_type}"]
-                    for day in days_to_show:
+                    for day in days_to_show_list:
                         difficulty = days_data[day]['difficulty_by_type'].get(task_type, 0)
                         row_values.append(difficulty)
                     tree.insert('', tk.END, values=tuple(row_values))
             else:
-                 tree.insert('', tk.END, values=('Сложность по типам:',) + ('Нет данных',) * len(days_to_show))
+                 tree.insert('', tk.END, values=('Сложность по типам:',) + ('Нет данных',) * len(days_to_show_list))
 
-    # 6. Размещение виджетов в окне
-    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=10)
+    # 7. Размещение виджетов в окне
+    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=(0, 10))
