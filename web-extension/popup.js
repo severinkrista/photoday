@@ -33831,7 +33831,6 @@
     runtimeApi()?.openOptionsPage?.();
   }
   function bind() {
-    $2("connect").onclick = () => openSettings();
     $2("refresh").onclick = () => void refresh();
     $2("openSettings").onclick = () => openSettings();
     $2("add").onclick = () => void addCurrentTask();

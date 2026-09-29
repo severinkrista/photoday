@@ -153,7 +153,6 @@
     $("diskPath").value = settings.diskPath;
     const n = settings.displayMode === "tasks" ? settings.tasksToShow : settings.daysToShow;
     $("tasks").value = String(n);
-    $("days").value = String(settings.daysToShow);
     $("modeTasks").checked = settings.displayMode === "tasks";
     $("modeDays").checked = settings.displayMode === "days";
     $("displayNumberLabel").textContent = settings.displayMode === "tasks" ? "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0437\u0430\u0434\u0430\u0447" : "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0434\u043D\u0435\u0439";
