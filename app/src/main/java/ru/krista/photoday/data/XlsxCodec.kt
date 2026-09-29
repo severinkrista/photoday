@@ -38,14 +38,21 @@ object XlsxCodec {
 
         val nextRow = Regex("<row[^>]*r=\"(\\d+)\"")
             .findAll(xml).map { it.groupValues[1].toInt() }.maxOrNull()?.plus(1) ?: 2
-        val nextId = Regex("<c[^>]*r=\"A(\\d+)\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+        val lastId = Regex("<row[^>]*r=\"(\\d+)\"[^>]*>.*?</row>", RegexOption.DOT_MATCHES_ALL)
             .findAll(xml)
-            .mapNotNull { match ->
-                Regex("<v>(.*?)</v>|<t>(.*?)</t>", RegexOption.DOT_MATCHES_ALL)
-                    .find(match.value)?.let { it.groupValues[1].ifBlank { it.groupValues[2] } }
-                    ?.toIntOrNull()
+            .lastOrNull()
+            ?.let { rowMatch ->
+                val rowNumber = rowMatch.groupValues[1]
+                Regex("<c[^>]*r=\"A$rowNumber\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+                    .find(rowMatch.value)
+                    ?.let { cell ->
+                        Regex("<v>(.*?)</v>|<t>(.*?)</t>", RegexOption.DOT_MATCHES_ALL)
+                            .find(cell.value)
+                            ?.let { value -> value.groupValues[1].ifBlank { value.groupValues[2] } }
+                    }
             }
-            .maxOrNull()?.plus(1) ?: 1
+            ?.toIntOrNull() ?: 0
+        val nextId = lastId + 1
 
         val row = buildRow(nextRow, nextId, task)
         entries[sheet] = xml.replace("</sheetData>", row + "</sheetData>").toByteArray(Charsets.UTF_8)
