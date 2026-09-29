@@ -31,7 +31,8 @@ class MainViewModel(
 
     fun setDaysToShow(days: Int) {
         if (days < 1) return
-        settingsStore.saveDaysToShow(days)\n        _uiState.value = _uiState.value.copy(daysToShow = days)
+        settingsStore.saveDaysToShow(days)
+        _uiState.value = _uiState.value.copy(daysToShow = days)
         if (_uiState.value.isConnected) refresh()
     }
 
