@@ -54,8 +54,9 @@ object XlsxCodec {
             ?.toIntOrNull() ?: 0
         val nextId = lastId + 1
 
+        val withAttachmentHeaders = ensureAttachmentHeaders(xml)
         val row = buildRow(nextRow, nextId, task)
-        entries[sheet] = xml.replace("</sheetData>", row + "</sheetData>").toByteArray(Charsets.UTF_8)
+        entries[sheet] = withAttachmentHeaders.replace("</sheetData>", row + "</sheetData>").toByteArray(Charsets.UTF_8)
         return zip(entries)
     }
 
@@ -116,6 +117,8 @@ object XlsxCodec {
                                 val typeCol = header?.get("Вид задачи") ?: "F"
                                 val taskCol = header?.get("Задача") ?: "G"
                                 val difficultyCol = header?.get("Сложность") ?: "H"
+                                val attachmentFolderCol = header?.get("Папка вложения") ?: "I"
+                                val attachmentNameCol = header?.get("Файл вложения") ?: "J"
                                 val dateValue = r[dateCol].orEmpty()
                                 val taskValue = r[taskCol].orEmpty()
 
@@ -128,7 +131,9 @@ object XlsxCodec {
                                         partOfDay = r[partCol].orEmpty(),
                                         taskType = r[typeCol].orEmpty(),
                                         task = taskValue,
-                                        difficulty = r[difficultyCol]?.toIntOrNull()
+                                        difficulty = r[difficultyCol]?.toIntOrNull(),
+                                        attachmentFolder = r[attachmentFolderCol]?.takeIf { it.isNotBlank() },
+                                        attachmentName = r[attachmentNameCol]?.takeIf { it.isNotBlank() }
                                     )
                                 }
                             }
@@ -175,8 +180,25 @@ object XlsxCodec {
             append(text("F", task.taskType))
             append(text("G", task.task))
             append(number("H", (task.difficulty ?: 0).toString()))
+            task.attachmentFolder?.let { append(text("I", it)) }
+            task.attachmentName?.let { append(text("J", it)) }
             append("</row>")
         }
+    }
+
+    private fun ensureAttachmentHeaders(xml: String): String {
+        val firstRowMatch = Regex("<row[^>]*r="1"[^>]*>.*?</row>", RegexOption.DOT_MATCHES_ALL).find(xml)
+            ?: error("В XLSX не найдена строка заголовков")
+        val firstRow = firstRowMatch.value
+        val hasI = Regex("<c[^>]*r="I1"[^>]*>", RegexOption.DOT_MATCHES_ALL).containsMatchIn(firstRow)
+        val hasJ = Regex("<c[^>]*r="J1"[^>]*>", RegexOption.DOT_MATCHES_ALL).containsMatchIn(firstRow)
+        if (hasI && hasJ) return xml
+        val headers = buildString {
+            if (!hasI) append("<c r="I1" t="inlineStr"><is><t>Папка вложения</t></is></c>")
+            if (!hasJ) append("<c r="J1" t="inlineStr"><is><t>Файл вложения</t></is></c>")
+        }
+        val updatedRow = firstRow.replace("</row>", headers + "</row>")
+        return xml.replace(firstRow, updatedRow)
     }
 
     private fun escape(v: String) = v.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&apos;")
