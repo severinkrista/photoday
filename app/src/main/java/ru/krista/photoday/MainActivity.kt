@@ -4,10 +4,12 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
+import android.graphics.BitmapFactory
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.BackHandler
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
@@ -29,6 +31,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.krista.photoday.data.TaskTypeDefinition
@@ -89,7 +93,9 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             state.filePickerOpen -> vm.closeFilePicker()
         }
     }
-    BackHandler(enabled = showTaskTypes || showSettings || showAdd || showCode || state.filePickerOpen) { goBack() }
+    BackHandler(enabled = state.attachmentPreview != null || showTaskTypes || showSettings || showAdd || showCode || state.filePickerOpen) {
+        if (state.attachmentPreview != null) vm.closeAttachment() else goBack()
+    }
 
     MaterialTheme {
         when {
@@ -115,6 +121,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                 onAdd = { showAdd = true },
                 onRetryPending = vm::retryPendingTask,
                 onCancelPending = vm::cancelPendingTask,
+                onOpenAttachment = vm::openAttachment,
                 onConnect = {
                     uriHandler.openUri(vm.authorizationUrl())
                     showCode = true
@@ -130,6 +137,31 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             onClose = vm::closeFilePicker,
             onLoadFolder = vm::loadFolder,
             onSelectFile = vm::selectFile
+        )
+    }
+
+    state.attachmentPreview?.let { preview ->
+        AlertDialog(
+            onDismissRequest = vm::closeAttachment,
+            title = { Text(preview.name) },
+            text = {
+                val bitmap = remember(preview.bytes) {
+                    BitmapFactory.decodeByteArray(preview.bytes, 0, preview.bytes.size)
+                }
+                if (bitmap != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = preview.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)
+                    )
+                } else {
+                    Text("Не удалось отобразить изображение.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = vm::closeAttachment) { Text("Закрыть") }
+            }
         )
     }
 
@@ -163,9 +195,9 @@ private fun PhotoDayScreen(vm: MainViewModel) {
         AddTaskCard(
             taskTypes = state.taskTypes,
             onDismiss = { showAdd = false },
-            onSave = { type, difficulty, text ->
+            onSave = { type, difficulty, text, attachmentUri ->
                 showAdd = false
-                vm.addTask(type, difficulty, text)
+                vm.addTask(type, difficulty, text, attachmentUri)
             }
         )
     }
@@ -180,6 +212,7 @@ private fun MainScreen(
     onAdd: () -> Unit,
     onRetryPending: (TaskRecord) -> Unit,
     onCancelPending: (TaskRecord) -> Unit,
+    onOpenAttachment: (TaskRecord) -> Unit,
     onConnect: () -> Unit
 ) {
     Scaffold { padding ->
@@ -260,7 +293,7 @@ private fun MainScreen(
                         Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(state.records) { TaskCard(it) }
+                        items(state.records) { TaskCard(it, onOpenAttachment) }
                     }
                 }
 
@@ -540,7 +573,7 @@ private fun FilePickerDialog(
 }
 
 @Composable
-private fun TaskCard(record: TaskRecord) {
+private fun TaskCard(record: TaskRecord, onOpenAttachment: (TaskRecord) -> Unit = {}) {
     var expanded by rememberSaveable(record.id) { mutableStateOf(false) }
 
     Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) {
@@ -551,10 +584,19 @@ private fun TaskCard(record: TaskRecord) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("${record.date ?: ""}  •  ${record.taskType}", style = MaterialTheme.typography.labelMedium)
-                Text(
-                    if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0),
-                    style = MaterialTheme.typography.labelMedium
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!record.attachmentName.isNullOrBlank()) {
+                        Text(
+                            "📎",
+                            modifier = Modifier.clickable { onOpenAttachment(record) }.padding(horizontal = 6.dp),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    Text(
+                        if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
             }
             Text(record.task, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
@@ -565,9 +607,15 @@ private fun TaskCard(record: TaskRecord) {
 private fun AddTaskCard(
     taskTypes: List<String>,
     onDismiss: () -> Unit,
-    onSave: (String, Int, String) -> Unit
+    onSave: (String, Int, String, android.net.Uri?) -> Unit
 ) {
     var type by remember(taskTypes) { mutableStateOf(taskTypes.firstOrNull() ?: "") }
+    var attachmentUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val attachmentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        attachmentUri = uri
+    }
     var difficulty by remember { mutableIntStateOf(0) }
     var text by remember { mutableStateOf("") }
 
@@ -616,6 +664,12 @@ private fun AddTaskCard(
                     Text(if (level <= difficulty) "★" else "☆", Modifier.size(38.dp).clickable { difficulty = level }, style = MaterialTheme.typography.headlineSmall)
                 }
             }
+            OutlinedButton(
+                onClick = { attachmentLauncher.launch(arrayOf("image/*")) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (attachmentUri == null) "＋ Фото / скриншот" else "📎 Фото прикреплено")
+            }
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
@@ -624,7 +678,7 @@ private fun AddTaskCard(
                 minLines = 8,
                 maxLines = 14
             )
-            Button(onClick = { onSave(type, difficulty, text) }, enabled = text.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { onSave(type, difficulty, text, attachmentUri) }, enabled = text.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                 Text("Сохранить")
             }
         }
