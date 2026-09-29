@@ -118,6 +118,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                     showCode = true
                 }
             )
+            }
         }
     }
 
