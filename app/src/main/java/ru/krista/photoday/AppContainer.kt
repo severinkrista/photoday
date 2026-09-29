@@ -6,10 +6,12 @@ import ru.krista.photoday.data.YandexOAuthClient
 import ru.krista.photoday.data.YandexTaskRepository
 import ru.krista.photoday.data.YandexTokenStore
 import ru.krista.photoday.data.YandexPathStore
+import ru.krista.photoday.data.SettingsStore
 
 class AppContainer(context: Context) {
     val tokenStore = YandexTokenStore(context)
     val pathStore = YandexPathStore(context)
+    val settingsStore = SettingsStore(context)
     val oauthClient = YandexOAuthClient()
     val diskClient = YandexDiskClient(tokenStore, pathStore)
     val taskRepository = YandexTaskRepository(diskClient)
