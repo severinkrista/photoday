@@ -11,5 +11,8 @@ data class TaskRecord(
     val partOfDay: String,
     val taskType: String,
     val task: String,
-    val difficulty: Int?
+    val difficulty: Int?,
+    val attachmentFolder: String? = null,
+    val attachmentName: String? = null,
+    val localAttachmentPath: String? = null
 )
