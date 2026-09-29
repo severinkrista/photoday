@@ -28,6 +28,8 @@ class MainViewModel(
     private val _uiState = MutableStateFlow(
         MainUiState(
             isConnected = tokenStore.getToken() != null,
+            displayMode = settingsStore.getDisplayMode(),
+            tasksToShow = settingsStore.getTasksToShow(),
             daysToShow = settingsStore.getDaysToShow(),
             taskTypes = settingsStore.getTaskTypes(),
             taskTypeDefinitions = settingsStore.getTaskTypeDefinitions(),
@@ -38,6 +40,20 @@ class MainViewModel(
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
+        if (_uiState.value.isConnected) refresh()
+    }
+
+    fun setDisplayMode(mode: String) {
+        if (mode != SettingsStore.DISPLAY_MODE_TASKS && mode != SettingsStore.DISPLAY_MODE_DAYS) return
+        settingsStore.saveDisplayMode(mode)
+        _uiState.value = _uiState.value.copy(displayMode = mode)
+        if (_uiState.value.isConnected) refresh()
+    }
+
+    fun setTasksToShow(count: Int) {
+        if (count < 1) return
+        settingsStore.saveTasksToShow(count)
+        _uiState.value = _uiState.value.copy(tasksToShow = count)
         if (_uiState.value.isConnected) refresh()
     }
 
@@ -104,9 +120,15 @@ class MainViewModel(
     fun refresh() {
         viewModelScope.launch {
             val today = LocalDate.now()
-            val from = today.minusDays((_uiState.value.daysToShow - 1).toLong())
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            repository.getTasks(from, today).onSuccess {
+            val current = _uiState.value
+            val from = today.minusDays((current.daysToShow - 1).toLong())
+            _uiState.value = current.copy(isLoading = true, errorMessage = null)
+            val result = if (current.displayMode == SettingsStore.DISPLAY_MODE_TASKS) {
+                repository.getLatestTasks(current.tasksToShow)
+            } else {
+                repository.getTasks(from, today)
+            }
+            result.onSuccess {
                 _uiState.value = _uiState.value.copy(
                     records = it,
                     pendingTasks = pendingTaskStore.getTasks(),
