@@ -42,10 +42,12 @@ class YandexTaskRepository(private val disk: YandexDiskClient) : TaskRepository 
     suspend fun addTask(task: TaskRecord, attachmentBytes: ByteArray? = null): Result<Unit> = runCatching {
         if (!task.attachmentFolder.isNullOrBlank() && !task.attachmentName.isNullOrBlank()) {
             val folder = task.attachmentFolder
-            val parent = folder.substringBeforeLast('/')
-            val attached = parent.substringBeforeLast('/') + "/attached"
-            disk.ensureFolder(attached).getOrThrow()
-            disk.ensureFolder(folder.substringBeforeLast('/')).getOrThrow()
+            // Создаём именно ту иерархию, в которую будет загружен файл:
+            // .../attached -> .../attached/YYYY -> .../attached/YYYY/MM
+            val yearFolder = folder.substringBeforeLast('/')
+            val attachedFolder = yearFolder.substringBeforeLast('/')
+            disk.ensureFolder(attachedFolder).getOrThrow()
+            disk.ensureFolder(yearFolder).getOrThrow()
             disk.ensureFolder(folder).getOrThrow()
             val bytes = attachmentBytes ?: error("Не найден локальный файл вложения")
             disk.uploadAttachment(
