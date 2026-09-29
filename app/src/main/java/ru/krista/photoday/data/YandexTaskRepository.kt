@@ -4,6 +4,13 @@ import ru.krista.photoday.domain.TaskRecord
 import ru.krista.photoday.domain.TaskRepository
 import java.time.LocalDate
 
+data class ConnectionTestResult(
+    val filePath: String,
+    val fileAvailable: Boolean,
+    val attachmentFolder: String,
+    val attachmentFolderExists: Boolean
+)
+
 class YandexTaskRepository(private val disk: YandexDiskClient) : TaskRepository {
     private var workbook: ByteArray? = null
 
@@ -25,6 +32,19 @@ class YandexTaskRepository(private val disk: YandexDiskClient) : TaskRepository 
     }
 
     fun currentPath(): String = disk.currentPath()
+
+    suspend fun testConnection(): Result<ConnectionTestResult> = runCatching {
+        val workbook = disk.downloadWorkbook().getOrThrow()
+        if (workbook.isEmpty()) error("Основной XLSX-файл пустой")
+        val attachmentRoot = disk.attachmentRootFolder()
+        val attachmentExists = disk.testFolderExists(attachmentRoot).getOrThrow()
+        ConnectionTestResult(
+            filePath = disk.currentPath(),
+            fileAvailable = true,
+            attachmentFolder = attachmentRoot,
+            attachmentFolderExists = attachmentExists
+        )
+    }
 
     suspend fun listFolder(path: String): Result<List<YandexDiskItem>> = disk.listFolder(path)
 
