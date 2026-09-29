@@ -14,6 +14,8 @@ import java.util.zip.ZipOutputStream
 
 object XlsxCodec {
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+    private val displayDateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+    private val displayTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
     fun read(bytes: ByteArray): List<TaskRecord> {
@@ -130,8 +132,8 @@ object XlsxCodec {
         return buildString {
             append("<row r=\"$row\">")
             append(number("A", id.toString()))
-            append(text("B", task.date?.format(dateFormatter).orEmpty()))
-            append(text("C", task.time?.format(timeFormatter).orEmpty()))
+            append(text("B", task.date?.format(displayDateFormatter).orEmpty()))
+            append(text("C", task.time?.format(displayTimeFormatter).orEmpty()))
             append(text("D", task.weekday))
             append(text("E", task.partOfDay))
             append(text("F", task.taskType))
@@ -145,12 +147,14 @@ object XlsxCodec {
     private fun column(ref: String) = ref.takeWhile { it.isLetter() }
     private fun parseDateOrExcelSerial(v: String): LocalDate? {
         runCatching { return LocalDate.parse(v, dateFormatter) }
+        runCatching { return LocalDate.parse(v, displayDateFormatter) }
         val serial = v.toDoubleOrNull() ?: return null
         return runCatching { LocalDate.of(1899, 12, 30).plusDays(serial.toLong()) }.getOrNull()
     }
 
     private fun parseTimeOrExcelSerial(v: String): LocalTime? {
         runCatching { return LocalTime.parse(v, timeFormatter) }
+        runCatching { return LocalTime.parse(v, displayTimeFormatter) }
         val serial = v.toDoubleOrNull() ?: return null
         val seconds = (serial - serial.toLong()) * 86_400.0
         return runCatching {
