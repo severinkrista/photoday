@@ -256,7 +256,7 @@ private fun SettingsScreen(
 ) {
     var value by remember(state.daysToShow) { mutableStateOf(state.daysToShow.toString()) }
 
-    Scaffold { padding ->
+    Scaffold(modifier = Modifier.edgeBackGesture(onBack)) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -430,8 +430,11 @@ private fun TaskCard(record: TaskRecord) {
 
     Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${record.date ?: ""}  ${record.time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: ""}  •  ${record.partOfDay}", style = MaterialTheme.typography.labelMedium)
-            Text("${record.taskType}   ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}", style = MaterialTheme.typography.labelLarge)
+            Text("${record.date ?: ""}", style = MaterialTheme.typography.labelMedium)
+            Text(
+                "${record.taskType}   •   Сложность: ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}",
+                style = MaterialTheme.typography.labelLarge
+            )
             Text(record.task, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
@@ -450,7 +453,10 @@ private fun AddTaskCard(
     val date = LocalDate.now()
     val time = LocalTime.now()
 
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp)) {
+    Card(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).edgeBackGesture(onDismiss),
+        shape = RoundedCornerShape(16.dp)
+    ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Новая задача", style = MaterialTheme.typography.titleLarge)
