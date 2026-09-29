@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
@@ -35,6 +36,25 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
+private fun Modifier.edgeBackGesture(onBack: () -> Unit): Modifier = pointerInput(Unit) {
+    var startX = 0f
+    var totalDx = 0f
+    detectHorizontalDragGestures(
+        onDragStart = { offset -> startX = offset.x; totalDx = 0f },
+        onHorizontalDrag = { change, dragAmount ->
+            if (startX <= 60f) {
+                totalDx += dragAmount
+                if (totalDx >= 120f) {
+                    onBack()
+                    totalDx = Float.NEGATIVE_INFINITY
+                }
+            }
+            change.consume()
+        },
+        onDragEnd = { startX = 0f; totalDx = 0f }
+    )
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,13 +76,25 @@ private fun PhotoDayScreen(vm: MainViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
 
+    val goBack = {
+        when {
+            showCode -> showCode = false
+            showAdd -> showAdd = false
+            showSettings -> showSettings = false
+            state.filePickerOpen -> vm.closeFilePicker()
+        }
+    }
+    BackHandler(enabled = showSettings || showAdd || showCode || state.filePickerOpen) { goBack() }
+
     MaterialTheme {
         if (showSettings) {
             SettingsScreen(
                 state = state,
                 onBack = { showSettings = false },
                 onDaysChanged = vm::setDaysToShow,
-                onSelectFile = vm::openFilePicker
+                onSelectFile = vm::openFilePicker,
+                taskTypes = state.taskTypes,
+                onSaveTaskTypes = vm::setTaskTypes
             )
         } else {
             MainScreen(
@@ -117,6 +149,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
 
     if (showAdd) {
         AddTaskCard(
+            taskTypes = state.taskTypes,
             onDismiss = { showAdd = false },
             onSave = { type, difficulty, text ->
                 showAdd = false
@@ -217,7 +250,9 @@ private fun SettingsScreen(
     state: MainUiState,
     onBack: () -> Unit,
     onDaysChanged: (Int) -> Unit,
-    onSelectFile: () -> Unit
+    onSelectFile: () -> Unit,
+    taskTypes: List<String>,
+    onSaveTaskTypes: (List<String>) -> Unit
 ) {
     var value by remember(state.daysToShow) { mutableStateOf(state.daysToShow.toString()) }
 
@@ -263,6 +298,11 @@ private fun SettingsScreen(
                 }
             }
 
+            TaskTypesSettings(
+                types = taskTypes,
+                onSave = onSaveTaskTypes
+            )
+
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Подключение", style = MaterialTheme.typography.titleMedium)
@@ -282,13 +322,64 @@ private fun PendingTaskCard(
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Не отправлена в таблицу", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
-            Text("${record.date ?: ""}  ${record.time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: ""}  •  ${record.partOfDay}", style = MaterialTheme.typography.labelMedium)
-            Text("${record.taskType}   ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}", style = MaterialTheme.typography.labelLarge)
+            Text("${record.date ?: ""}", style = MaterialTheme.typography.labelMedium)
+            Text("${record.taskType}   •   Сложность: ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}", style = MaterialTheme.typography.labelLarge)
             Text(record.task, style = MaterialTheme.typography.bodyLarge)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { onCancel(record) }) { Text("Отменить") }
                 Button(onClick = { onRetry(record) }) { Text("Повторить отправку") }
             }
+        }
+    }
+}
+
+@Composable
+private fun TaskTypesSettings(
+    types: List<String>,
+    onSave: (List<String>) -> Unit
+) {
+    var items by remember(types) { mutableStateOf(types) }
+    var newType by remember { mutableStateOf("") }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Типы задач", style = MaterialTheme.typography.titleMedium)
+            items.forEachIndexed { index, type ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(type, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    TextButton(onClick = {
+                        if (items.size > 1) items = items.filterIndexed { i, _ -> i != index }
+                    }) { Text("Удалить") }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = newType,
+                    onValueChange = { newType = it.take(10) },
+                    label = { Text("Новый тип") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = {
+                        val value = newType.trim()
+                        if (value.isNotEmpty() && !items.contains(value)) {
+                            items = items + value
+                            newType = ""
+                        }
+                    },
+                    enabled = newType.trim().isNotEmpty() && !items.contains(newType.trim())
+                ) { Text("Добавить") }
+            }
+            Button(
+                onClick = { onSave(items) },
+                enabled = items.isNotEmpty() && items != types,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Сохранить типы") }
         }
     }
 }
@@ -348,26 +439,16 @@ private fun TaskCard(record: TaskRecord) {
 
 @Composable
 private fun AddTaskCard(
+    taskTypes: List<String>,
     onDismiss: () -> Unit,
     onSave: (String, Int, String) -> Unit
 ) {
-    var type by remember { mutableStateOf("Р") }
+    var type by remember(taskTypes) { mutableStateOf(taskTypes.firstOrNull() ?: "") }
     var difficulty by remember { mutableIntStateOf(0) }
     var text by remember { mutableStateOf("") }
 
     val date = LocalDate.now()
     val time = LocalTime.now()
-    val timePart = when (time.hour) {
-        in 0..7 -> "До начала рабочего дня"
-        in 8..11 -> "Утро"
-        in 12..14 -> "Обед"
-        in 15..17 -> "Вечер"
-        else -> "После конца рабочего дня"
-    }
-    val descriptions = mapOf(
-        "У" to "Управленческие", "Р" to "Рутинные рабочие", "ОК" to "Вся компания",
-        "Л" to "Личные", "ЗП" to "Зарплата / премия", "ГК" to "Гос. контракты", "КК" to "КристаКоманда"
-    )
 
     Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -375,9 +456,9 @@ private fun AddTaskCard(
                 Text("Новая задача", style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = onDismiss) { Text("Отмена") }
             }
-            Text("${date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}  •  ${time.format(DateTimeFormatter.ofPattern("HH:mm"))}  •  $timePart", style = MaterialTheme.typography.labelMedium)
+            Text(date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")), style = MaterialTheme.typography.labelMedium)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("У","Р","ОК","Л","ЗП","ГК","КК").forEach { value ->
+                taskTypes.forEach { value ->
                     Text(
                         if (value == type) "[$value]" else value,
                         modifier = Modifier.clickable { type = value }.padding(horizontal = 7.dp, vertical = 5.dp),
@@ -385,7 +466,6 @@ private fun AddTaskCard(
                     )
                 }
             }
-            Text(descriptions[type].orEmpty(), style = MaterialTheme.typography.labelSmall)
             Text("Сложность: ${if (difficulty == 0) "0" else "★".repeat(difficulty)}")
             Row(
                 Modifier.fillMaxWidth().height(50.dp).pointerInput(Unit) {
