@@ -29,11 +29,32 @@ object XlsxCodec {
         val sheet = entries.keys.firstOrNull { it.startsWith("xl/worksheets/") && it.endsWith(".xml") }
             ?: error("В XLSX не найден лист")
         val xml = entries.getValue(sheet).toString(Charsets.UTF_8)
-        val nextRow = Regex("<row[^>]*\\br=\"(\\d+)\"")
+        if (!hasIdHeader(xml)) {
+            error("В XLSX отсутствует первая колонка ID. Добавьте колонку «ID» перед колонкой «Дата».")
+        }
+
+        val nextRow = Regex("<row[^>]*\\\br=\"(\\\d+)\"")
             .findAll(xml).map { it.groupValues[1].toInt() }.maxOrNull()?.plus(1) ?: 2
-        val row = buildRow(nextRow, task)
-        entries[sheet] = xml.replace("</sheetData>", "$row</sheetData>").toByteArray(Charsets.UTF_8)
+        val nextId = Regex("<c[^>]*\\\br=\"A(\\\d+)\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+            .findAll(xml)
+            .mapNotNull { match ->
+                Regex("<v>(.*?)</v>|<t>(.*?)</t>", RegexOption.DOT_MATCHES_ALL)
+                    .find(match.value)?.let { it.groupValues[1].ifBlank { it.groupValues[2] } }
+                    ?.toIntOrNull()
+            }
+            .maxOrNull()?.plus(1) ?: 1
+
+        val row = buildRow(nextRow, nextId, task)
+        entries[sheet] = xml.replace("</sheetData>", row + "</sheetData>").toByteArray(Charsets.UTF_8)
         return zip(entries)
+    }
+
+    private fun hasIdHeader(xml: String): Boolean {
+        val header = Regex("<c[^>]*\\\br=\"A1\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+            .find(xml)?.value ?: return false
+        return Regex("<t>(.*?)</t>|<v>(.*?)</v>", RegexOption.DOT_MATCHES_ALL)
+            .find(header)?.let { it.groupValues[1].ifBlank { it.groupValues[2] } }
+            ?.equals("ID", ignoreCase = true) == true
     }
 
     private fun readSheet(bytes: ByteArray, shared: List<String>): List<TaskRecord> {
@@ -62,16 +83,16 @@ object XlsxCodec {
                     "c" -> row?.set(column(ref), decode(value, type, shared))
                     "row" -> {
                         val r = row
-                        if (r != null && r["A"] != "Дата" && r["F"].orEmpty().isNotBlank()) {
+                        if (r != null && r["A"] != "ID" && r["B"].orEmpty().isNotBlank() && r["G"].orEmpty().isNotBlank()) {
                             result += TaskRecord(
-                                id = r["A"],
-                                date = r["A"]?.let { parseDateOrExcelSerial(it) },
-                                time = r["B"]?.let { parseTimeOrExcelSerial(it) },
-                                weekday = r["C"].orEmpty(),
-                                partOfDay = r["D"].orEmpty(),
-                                taskType = r["E"].orEmpty(),
-                                task = r["F"].orEmpty(),
-                                difficulty = r["G"]?.toIntOrNull()
+                                id = r["A"]?.takeIf { it.isNotBlank() },
+                                date = r["B"]?.let { parseDateOrExcelSerial(it) },
+                                time = r["C"]?.let { parseTimeOrExcelSerial(it) },
+                                weekday = r["D"].orEmpty(),
+                                partOfDay = r["E"].orEmpty(),
+                                taskType = r["F"].orEmpty(),
+                                task = r["G"].orEmpty(),
+                                difficulty = r["H"]?.toIntOrNull()
                             )
                         }
                         row = null
@@ -102,19 +123,20 @@ object XlsxCodec {
         return result
     }
 
-    private fun buildRow(row: Int, task: TaskRecord): String {
+    private fun buildRow(row: Int, id: Int, task: TaskRecord): String {
         fun text(col: String, value: String) =
             "<c r=\"$col$row\" t=\"inlineStr\"><is><t>${escape(value)}</t></is></c>"
         fun number(col: String, value: String) = "<c r=\"$col$row\"><v>$value</v></c>"
         return buildString {
             append("<row r=\"$row\">")
-            append(text("A", task.date?.format(dateFormatter).orEmpty()))
-            append(text("B", task.time?.format(timeFormatter).orEmpty()))
-            append(text("C", task.weekday))
-            append(text("D", task.partOfDay))
-            append(text("E", task.taskType))
-            append(text("F", task.task))
-            append(number("G", (task.difficulty ?: 0).toString()))
+            append(number("A", id.toString()))
+            append(text("B", task.date?.format(dateFormatter).orEmpty()))
+            append(text("C", task.time?.format(timeFormatter).orEmpty()))
+            append(text("D", task.weekday))
+            append(text("E", task.partOfDay))
+            append(text("F", task.taskType))
+            append(text("G", task.task))
+            append(number("H", (task.difficulty ?: 0).toString()))
             append("</row>")
         }
     }
