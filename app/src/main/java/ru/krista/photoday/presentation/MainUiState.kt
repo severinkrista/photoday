@@ -19,6 +19,8 @@ data class MainUiState(
     val taskTypeDefinitions: List<TaskTypeDefinition> = emptyList(),
     val isConnected: Boolean = false,
     val errorMessage: String? = null,
+    val connectionTestLoading: Boolean = false,
+    val connectionTestResult: String? = null,
     val attachmentPreview: AttachmentPreview? = null,
     val attachmentLoading: Boolean = false,
     val selectedPath: String = "",
