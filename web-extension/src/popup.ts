@@ -1,8 +1,11 @@
 import type {AppSettings,PendingTask,TaskRecord} from "./model.js";import {DEFAULT_SETTINGS} from "./model.js";import {getPendingTasks,getSettings,getToken,savePendingTasks} from "./storage.js";import {addTask,getAttachment,getTasks} from "./repository.js";
 let settings:AppSettings=DEFAULT_SETTINGS,records:TaskRecord[]=[],pending:PendingTask[]=[];
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
-async function init(){settings=await getSettings();pending=await getPendingTasks();bind();renderSettings();setDifficulty(0);await refresh();}
-function bind(){$("connect").onclick=()=>{const c=(globalThis as any).chrome;c?.runtime?.openOptionsPage?.();};$("refresh").onclick=()=>void refresh();$("openSettings").onclick=()=>{const c=(globalThis as any).chrome;c?.runtime?.openOptionsPage?.();};$("add").onclick=()=>void addCurrentTask();$("attachment").addEventListener("change",()=>{$("attachmentName").textContent=(($("attachment") as HTMLInputElement).files?.[0]?.name??"");});for(let i=1;i<=5;i++)$<HTMLButtonElement>("difficulty-"+i).onclick=()=>setDifficulty(i);}
+function runtimeApi(){return (globalThis as any).browser?.runtime ?? (globalThis as any).chrome?.runtime;}
+function openSettings(){runtimeApi()?.openOptionsPage?.();}
+function bind(){$("connect").onclick=()=>openSettings();$("refresh").onclick=()=>void refresh();$("openSettings").onclick=()=>openSettings();$("add").onclick=()=>void addCurrentTask();$("attachment").addEventListener("change",()=>{$("attachmentName").textContent=(($("attachment") as HTMLInputElement).files?.[0]?.name??"");});for(let i=1;i<=5;i++)$<HTMLButtonElement>("difficulty-"+i).onclick=()=>setDifficulty(i);}
+async function init(){try{settings=await getSettings();pending=await getPendingTasks();renderSettings();setDifficulty(0);await refresh();}catch(e){showError(e);}}
+
 function setDifficulty(value:number){for(let i=1;i<=5;i++){const b=$<HTMLButtonElement>("difficulty-"+i);b.classList.toggle("selected",i<=value);b.setAttribute("aria-pressed",String(i<=value));}}
 function selectedDifficulty(){for(let i=5;i>=1;i--)if($<HTMLButtonElement>("difficulty-"+i).classList.contains("selected"))return i;return 0;}
 async function refresh(){clearError();$("refresh").setAttribute("disabled","");try{if(!(await getToken())){$("connection").textContent="Яндекс Диск не подключён";renderRecords();return;}$("connection").textContent="Яндекс Диск подключён";records=filter(await getTasks(settings));pending=await getPendingTasks();renderRecords();}catch(e){showError(e);}finally{$("refresh").removeAttribute("disabled");}}
@@ -17,4 +20,4 @@ function renderPending(){const root=$("pending");root.innerHTML="";pending.forEa
 async function openAttachment(t:TaskRecord){try{const data=await getAttachment(t),url=URL.createObjectURL(new Blob([data]));window.open(url,"_blank");setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(e){showError(e);}}
 function showError(e:unknown){$("error").textContent=e instanceof Error?e.message:String(e);$("error").hidden=false;}function clearError(){$("error").hidden=true;}
 function partOfDay(d:Date){if(d.getHours()<8)return"До начала рабочего дня";if(d.getHours()<12)return"Утро";if(d.getHours()<15)return"Обед";if(d.getHours()<18)return"Вечер";return"После конца рабочего дня";}
-void init();
+bind();void init();
