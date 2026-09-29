@@ -7,5 +7,10 @@ data class MainUiState(
     val records: List<TaskRecord> = emptyList(),
     val daysToShow: Int = 2,
     val isConnected: Boolean = false,
-    val errorMessage: String? = null,\n    val selectedPath: String = "",\n    val filePickerOpen: Boolean = false,\n    val filePickerPath: String = "disk:/",\n    val filePickerItems: List<ru.krista.photoday.data.YandexDiskItem> = emptyList(),\n    val filePickerLoading: Boolean = false
+    val errorMessage: String? = null,
+    val selectedPath: String = "",
+    val filePickerOpen: Boolean = false,
+    val filePickerPath: String = "disk:/",
+    val filePickerItems: List<ru.krista.photoday.data.YandexDiskItem> = emptyList(),
+    val filePickerLoading: Boolean = false
 )
