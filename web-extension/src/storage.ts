@@ -9,5 +9,5 @@ export async function getSettings(){const s=await get<AppSettings>("settings",DE
 export async function saveSettings(s:AppSettings){await set("settings",s);}
 export async function getToken(){return get<string|null>("token",null);}
 export async function saveToken(t:string){await set("token",t);}
-export async function getPendingTasks():Promise<PendingTask[]>{const stored=await get<StoredPendingTask[]>("pending",[]);return stored.map(p=>p.attachment?{...p,attachment:{...p.attachment,data:fromBase64(p.attachment.data)}}:p);}
-export async function savePendingTasks(p:PendingTask[]){const stored:StoredPendingTask[]=p.map(x=>x.attachment?{...x,attachment:{...x.attachment,data:toBase64(x.attachment.data)}}:x);await set("pending",stored);}
+export async function getPendingTasks():Promise<PendingTask[]>{const stored=await get<StoredPendingTask[]>("pending",[]);return stored.map(p=>{if(!p.attachment)return {task:p.task,createdAt:p.createdAt};const data=typeof p.attachment.data==="string"?fromBase64(p.attachment.data):new ArrayBuffer(0);return {task:p.task,createdAt:p.createdAt,attachment:{name:p.attachment.name,type:p.attachment.type,data}};});}
+export async function savePendingTasks(p:PendingTask[]){const stored:StoredPendingTask[]=p.map(x=>{if(!x.attachment)return {task:x.task,createdAt:x.createdAt};return {task:x.task,createdAt:x.createdAt,attachment:{name:x.attachment.name,type:x.attachment.type,data:toBase64(x.attachment.data)}};});await set("pending",stored);}
