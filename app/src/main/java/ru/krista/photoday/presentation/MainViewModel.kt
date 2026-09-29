@@ -94,6 +94,36 @@ class MainViewModel(
         }
     }
 
+    fun testConnection() {
+        if (_uiState.value.connectionTestLoading) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                connectionTestLoading = true,
+                connectionTestResult = null,
+                errorMessage = null
+            )
+            repository.testConnection()
+                .onSuccess { result ->
+                    val folderStatus = if (result.attachmentFolderExists) {
+                        "папка вложений найдена"
+                    } else {
+                        "папка вложений пока не создана"
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        connectionTestLoading = false,
+                        connectionTestResult = "Подключение работает. Основной файл доступен. $folderStatus."
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        connectionTestLoading = false,
+                        connectionTestResult = null,
+                        errorMessage = "Проверка подключения не пройдена: " + (it.message ?: "неизвестная ошибка")
+                    )
+                }
+        }
+    }
+
     fun openFilePicker() {
         _uiState.value = _uiState.value.copy(filePickerOpen = true, filePickerPath = "disk:/", filePickerLoading = true)
         loadFolder("disk:/")
