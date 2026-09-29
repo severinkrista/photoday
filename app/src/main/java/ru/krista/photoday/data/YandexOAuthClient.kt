@@ -44,7 +44,7 @@ class YandexOAuthClient {
             c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val response = (if (c.responseCode in 200..299) c.inputStream else c.errorStream).bufferedReader().use { it.readText() }
             if (c.responseCode !in 200..299) error("Яндекс OAuth: HTTP ${c.responseCode}: $response")
-            Regex(""access_token"\\s*:\\s*"([^"]+)"").find(response)?.groupValues?.get(1)
+            Regex("\"access_token\"\\s*:\\s*\"([^\"]+)\"").find(response)?.groupValues?.get(1)
                 ?: error("Яндекс не вернул OAuth-токен")
         }
     }

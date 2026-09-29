@@ -41,7 +41,7 @@ class YandexDiskClient(private val tokenStore: YandexTokenStore) {
             error("Яндекс Диск: HTTP ${c.responseCode}: $message")
         }
         val response = c.inputStream.bufferedReader().use { it.readText() }
-        return Regex(""href"\\s*:\\s*"([^"]+)"").find(response)?.groupValues?.get(1)
+        return Regex("\"href\"\\s*:\\s*\"([^\"]+)\"").find(response)?.groupValues?.get(1)
             ?.replace("\\/","/")
             ?: error("Яндекс Диск не вернул ссылку операции")
     }

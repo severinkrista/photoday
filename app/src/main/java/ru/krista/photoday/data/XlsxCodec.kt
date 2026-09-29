@@ -29,7 +29,7 @@ object XlsxCodec {
         val sheet = entries.keys.firstOrNull { it.startsWith("xl/worksheets/") && it.endsWith(".xml") }
             ?: error("В XLSX не найден лист")
         val xml = entries.getValue(sheet).toString(Charsets.UTF_8)
-        val nextRow = Regex("<row[^>]*\\br="(\\d+)"")
+        val nextRow = Regex("<row[^>]*\\br=\"(\\d+)\"")
             .findAll(xml).map { it.groupValues[1].toInt() }.maxOrNull()?.plus(1) ?: 2
         val row = buildRow(nextRow, task)
         entries[sheet] = xml.replace("</sheetData>", "$row</sheetData>").toByteArray(Charsets.UTF_8)
@@ -104,10 +104,10 @@ object XlsxCodec {
 
     private fun buildRow(row: Int, task: TaskRecord): String {
         fun text(col: String, value: String) =
-            "<c r="$col$row" t="inlineStr"><is><t>${escape(value)}</t></is></c>"
-        fun number(col: String, value: String) = "<c r="$col$row"><v>$value</v></c>"
+            "<c r=\"$col$row\" t=\"inlineStr\"><is><t>${escape(value)}</t></is></c>"
+        fun number(col: String, value: String) = "<c r=\"$col$row\"><v>$value</v></c>"
         return buildString {
-            append("<row r="$row">")
+            append("<row r=\"$row\">")
             append(text("A", task.date?.format(dateFormatter).orEmpty()))
             append(text("B", task.time?.format(timeFormatter).orEmpty()))
             append(text("C", task.weekday))
@@ -119,7 +119,7 @@ object XlsxCodec {
         }
     }
 
-    private fun escape(v: String) = v.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace(""","&quot;").replace("'","&apos;")
+    private fun escape(v: String) = v.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&apos;")
     private fun column(ref: String) = ref.takeWhile { it.isLetter() }
     private fun parseDateOrExcelSerial(v: String): LocalDate? {
         runCatching { return LocalDate.parse(v, dateFormatter) }
