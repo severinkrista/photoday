@@ -1,2 +1,5 @@
 /build
 PhotoDay.spec
+local.properties
+.idea/
+*.iml
