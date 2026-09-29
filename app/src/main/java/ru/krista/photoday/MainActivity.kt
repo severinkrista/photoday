@@ -14,6 +14,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -159,6 +161,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScreen(
     state: MainUiState,
@@ -186,7 +189,6 @@ private fun MainScreen(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (state.isConnected) TextButton(onClick = onRefresh) { Text("Обновить") }
                     TextButton(onClick = onSettings) { Text("Настройки") }
                 }
             }
@@ -232,11 +234,19 @@ private fun MainScreen(
                     }
                 }
 
-                LazyColumn(
-                    Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                val pullRefreshState = rememberPullToRefreshState()
+                PullToRefreshBox(
+                    isRefreshing = state.isLoading,
+                    onRefresh = onRefresh,
+                    state = pullRefreshState,
+                    modifier = Modifier.fillMaxWidth().weight(1f)
                 ) {
-                    items(state.records) { TaskCard(it) }
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.records) { TaskCard(it) }
+                    }
                 }
 
 
