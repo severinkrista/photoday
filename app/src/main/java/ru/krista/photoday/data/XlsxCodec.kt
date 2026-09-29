@@ -31,7 +31,8 @@ object XlsxCodec {
         val sheet = entries.keys.firstOrNull { it.startsWith("xl/worksheets/") && it.endsWith(".xml") }
             ?: error("В XLSX не найден лист")
         val xml = entries.getValue(sheet).toString(Charsets.UTF_8)
-        if (!hasIdHeader(xml)) {
+        val strings = readSharedStrings(entries["xl/sharedStrings.xml"])
+        if (!hasIdHeader(xml, strings)) {
             error("В XLSX отсутствует первая колонка ID. Добавьте колонку «ID» перед колонкой «Дата».")
         }
 
@@ -51,12 +52,20 @@ object XlsxCodec {
         return zip(entries)
     }
 
-    private fun hasIdHeader(xml: String): Boolean {
+    private fun hasIdHeader(xml: String, shared: List<String>): Boolean {
         val header = Regex("<c[^>]*r=\"A1\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
             .find(xml)?.value ?: return false
-        return Regex("<t>(.*?)</t>|<v>(.*?)</v>", RegexOption.DOT_MATCHES_ALL)
+        val cellType = Regex("<c[^>]*t="([^"]+)"[^>]*>", RegexOption.DOT_MATCHES_ALL)
+            .find(header)?.groupValues?.getOrNull(1)
+        val raw = Regex("<t>(.*?)</t>|<v>(.*?)</v>", RegexOption.DOT_MATCHES_ALL)
             .find(header)?.let { it.groupValues[1].ifBlank { it.groupValues[2] } }
-            ?.equals("ID", ignoreCase = true) == true
+            .orEmpty()
+        val value = if (cellType == "s") {
+            shared.getOrNull(raw.toIntOrNull() ?: -1).orEmpty()
+        } else {
+            raw
+        }
+        return value.trim().equals("ID", ignoreCase = true)
     }
 
     private fun readSheet(bytes: ByteArray, shared: List<String>): List<TaskRecord> {
