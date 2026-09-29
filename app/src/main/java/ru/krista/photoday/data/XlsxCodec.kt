@@ -33,9 +33,9 @@ object XlsxCodec {
             error("В XLSX отсутствует первая колонка ID. Добавьте колонку «ID» перед колонкой «Дата».")
         }
 
-        val nextRow = Regex("<row[^>]*\\\br=\"(\\\d+)\"")
+        val nextRow = Regex("<row[^>]*r=\"(\\\d+)\"")
             .findAll(xml).map { it.groupValues[1].toInt() }.maxOrNull()?.plus(1) ?: 2
-        val nextId = Regex("<c[^>]*\\\br=\"A(\\\d+)\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+        val nextId = Regex("<c[^>]*r=\"A(\\\d+)\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
             .findAll(xml)
             .mapNotNull { match ->
                 Regex("<v>(.*?)</v>|<t>(.*?)</t>", RegexOption.DOT_MATCHES_ALL)
@@ -50,7 +50,7 @@ object XlsxCodec {
     }
 
     private fun hasIdHeader(xml: String): Boolean {
-        val header = Regex("<c[^>]*\\\br=\"A1\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+        val header = Regex("<c[^>]*r=\"A1\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
             .find(xml)?.value ?: return false
         return Regex("<t>(.*?)</t>|<v>(.*?)</v>", RegexOption.DOT_MATCHES_ALL)
             .find(header)?.let { it.groupValues[1].ifBlank { it.groupValues[2] } }
