@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import ru.krista.photoday.data.YandexOAuthClient
 import ru.krista.photoday.data.YandexTaskRepository
 import ru.krista.photoday.data.YandexTokenStore
+import ru.krista.photoday.data.SettingsStore
 import ru.krista.photoday.domain.TaskRecord
 import java.time.LocalDate
 import java.time.LocalTime
@@ -16,10 +17,11 @@ import java.time.LocalTime
 class MainViewModel(
     private val oauth: YandexOAuthClient,
     private val repository: YandexTaskRepository,
-    private val tokenStore: YandexTokenStore
+    private val tokenStore: YandexTokenStore,
+    private val settingsStore: SettingsStore
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
-        MainUiState(isConnected = tokenStore.getToken() != null, selectedPath = repository.currentPath())
+        MainUiState(isConnected = tokenStore.getToken() != null, daysToShow = settingsStore.getDaysToShow(), selectedPath = repository.currentPath())
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
@@ -29,7 +31,7 @@ class MainViewModel(
 
     fun setDaysToShow(days: Int) {
         if (days < 1) return
-        _uiState.value = _uiState.value.copy(daysToShow = days)
+        settingsStore.saveDaysToShow(days)\n        _uiState.value = _uiState.value.copy(daysToShow = days)
         if (_uiState.value.isConnected) refresh()
     }
 
