@@ -86,7 +86,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Фото дня", style = MaterialTheme.typography.headlineSmall)
-                    if (state.isConnected) TextButton(onClick = vm::refresh) { Text("Обновить") }
+                    if (state.isConnected) { Row { TextButton(onClick = vm::openFilePicker) { Text("Файл") }; TextButton(onClick = vm::refresh) { Text("Обновить") } } }
                 }
 
                 state.errorMessage?.let { errorText ->
@@ -122,6 +122,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                         }
                     }
                 } else {
+                    Text("Файл: " + state.selectedPath.substringAfterLast("/").ifBlank { state.selectedPath }, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { showAdd = true }, Modifier.fillMaxWidth()) {
                         Text("＋ Новая задача")
                     }
@@ -142,6 +143,31 @@ private fun PhotoDayScreen(vm: MainViewModel) {
         }
     }
 
+    if (state.filePickerOpen) {
+        AlertDialog(
+            onDismissRequest = vm::closeFilePicker,
+            title = { Text("Выбор файла Яндекс Диска") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(state.filePickerPath, style = MaterialTheme.typography.labelSmall)
+                    TextButton(onClick = { vm.loadFolder("disk:/") }) { Text("К корню") }
+                    if (state.filePickerLoading) { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                    else if (state.filePickerItems.isEmpty()) { Text("В этой папке ничего нет.") }
+                    else {
+                        LazyColumn(Modifier.fillMaxWidth().height(360.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            items(state.filePickerItems, key = { it.path }) { item ->
+                                TextButton(onClick = { if (item.type == "dir") vm.loadFolder(item.path) else if (item.name.lowercase().endsWith(".xlsx")) vm.selectFile(item.path) }, modifier = Modifier.fillMaxWidth()) {
+                                    Text(if (item.type == "dir") "📁 " + item.name else "📄 " + item.name, modifier = Modifier.fillMaxWidth())
+                                }
+                            }
+                        }
+                    }
+                    Text("Можно выбрать только XLSX-файл.", style = MaterialTheme.typography.labelSmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = vm::closeFilePicker) { Text("Отмена") } }
+        )
+    }
     if (showCode) {
         AlertDialog(
             onDismissRequest = { showCode = false },
