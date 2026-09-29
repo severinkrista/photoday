@@ -25,9 +25,13 @@ class MainViewModel(app:Application):AndroidViewModel(app){
    YandexAuthResult.Cancelled->state.value=state.value.copy(message="Авторизация отменена")
   }
  }
- fun refresh(){val t=token.get()?:return state.value.also{state.value=it.copy(message="Сначала подключите Яндекс")};viewModelScope.launch{
-  state.value=state.value.copy(loading=true,message=null)
-  runCatching{withContext(Dispatchers.IO){disk.downloadFile(t,file);reader.read(file,state.value.days)}}.onSuccess{r->state.value=state.value.copy(loading=false,records=r,message="Загружено: "+r.size)}.onFailure{e->state.value=state.value.copy(loading=false,message=e.message?:"Ошибка загрузки")}
- }}
+ fun refresh(){
+  val t=token.get()
+  if(t==null){state.value=state.value.copy(message="Сначала подключите Яндекс");return}
+  viewModelScope.launch{
+   state.value=state.value.copy(loading=true,message=null)
+   runCatching{withContext(Dispatchers.IO){disk.downloadFile(t,file);reader.read(file,state.value.days)}}.onSuccess{r->state.value=state.value.copy(loading=false,records=r,message="Загружено: "+r.size)}.onFailure{e->state.value=state.value.copy(loading=false,message=e.message?:"Ошибка загрузки")}
+  }
+ }
  fun logout(){token.clear();state.value=MainUiState()}
 }
