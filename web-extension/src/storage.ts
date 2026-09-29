@@ -5,7 +5,19 @@ function toBase64(data:ArrayBuffer){let binary="";const bytes=new Uint8Array(dat
 function fromBase64(value:string){const binary=atob(value);const out=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)out[i]=binary.charCodeAt(i);return out.buffer;}
 async function get<T>(key:string,fallback:T):Promise<T>{if(storage){const r=await storage.get(key);return (r[key] as T|undefined)??fallback;}const raw=localStorage.getItem(key);return raw?JSON.parse(raw) as T:fallback;}
 async function set<T>(key:string,value:T){if(storage){await storage.set({[key]:value});return;}localStorage.setItem(key,JSON.stringify(value));}
-export async function getSettings(){const s=await get<AppSettings>("settings",DEFAULT_SETTINGS);return {...DEFAULT_SETTINGS,...s,taskTypes:s.taskTypes?.length?s.taskTypes:DEFAULT_SETTINGS.taskTypes};}
+export async function getSettings(){
+ const s=await get<Partial<AppSettings>>("settings",{});
+ const mode=s.displayMode==="days"?"days":"tasks";
+ const tasks=Number(s.tasksToShow); const days=Number(s.daysToShow);
+ return {
+  displayMode:mode,
+  tasksToShow:Number.isFinite(tasks)&&tasks>0?Math.floor(tasks):DEFAULT_SETTINGS.tasksToShow,
+  daysToShow:Number.isFinite(days)&&days>0?Math.floor(days):DEFAULT_SETTINGS.daysToShow,
+  diskPath:typeof s.diskPath==="string"&&s.diskPath.trim()?s.diskPath:DEFAULT_SETTINGS.diskPath,
+  taskTypes:Array.isArray(s.taskTypes)&&s.taskTypes.length?s.taskTypes:DEFAULT_SETTINGS.taskTypes.map(x=>({...x}))
+ };
+}
+export async function clearLocalData(){if(storage){await storage.clear();return;}localStorage.clear();}
 export async function saveSettings(s:AppSettings){await set("settings",s);}
 export async function getToken(){return get<string|null>("token",null);}
 export async function saveToken(t:string){await set("token",t);}
