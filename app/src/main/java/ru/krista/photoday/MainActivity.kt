@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ru.krista.photoday.data.TaskTypeDefinition
 import ru.krista.photoday.domain.TaskRecord
 import ru.krista.photoday.presentation.MainUiState
 import ru.krista.photoday.presentation.MainViewModel
@@ -76,29 +77,35 @@ private fun PhotoDayScreen(vm: MainViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var showCode by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showTaskTypes by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
 
     val goBack = {
         when {
             showCode -> showCode = false
             showAdd -> showAdd = false
+            showTaskTypes -> showTaskTypes = false
             showSettings -> showSettings = false
             state.filePickerOpen -> vm.closeFilePicker()
         }
     }
-    BackHandler(enabled = showSettings || showAdd || showCode || state.filePickerOpen) { goBack() }
+    BackHandler(enabled = showTaskTypes || showSettings || showAdd || showCode || state.filePickerOpen) { goBack() }
 
     MaterialTheme {
-        if (showSettings) {
-            SettingsScreen(
+        when {
+            showTaskTypes -> TaskTypesScreen(
+                definitions = state.taskTypeDefinitions,
+                onBack = { showTaskTypes = false },
+                onSave = vm::setTaskTypeDefinitions
+            )
+            showSettings -> SettingsScreen(
                 state = state,
                 onBack = { showSettings = false },
                 onDaysChanged = vm::setDaysToShow,
                 onSelectFile = vm::openFilePicker,
-                taskTypes = state.taskTypes,
-                onSaveTaskTypes = vm::setTaskTypes
+                onOpenTaskTypes = { showTaskTypes = true }
             )
-        } else {
+            else -> {
             MainScreen(
                 state = state,
                 onSettings = { showSettings = true },
@@ -261,8 +268,7 @@ private fun SettingsScreen(
     onBack: () -> Unit,
     onDaysChanged: (Int) -> Unit,
     onSelectFile: () -> Unit,
-    taskTypes: List<String>,
-    onSaveTaskTypes: (List<String>) -> Unit
+    onOpenTaskTypes: () -> Unit
 ) {
     var value by remember(state.daysToShow) { mutableStateOf(state.daysToShow.toString()) }
 
@@ -308,10 +314,13 @@ private fun SettingsScreen(
                 }
             }
 
-            TaskTypesSettings(
-                types = taskTypes,
-                onSave = onSaveTaskTypes
-            )
+            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenTaskTypes)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Типы задач", style = MaterialTheme.typography.titleMedium)
+                    Text("Настройка набора типов и их описаний")
+                    Text("›", style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.End))
+                }
+            }
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -344,52 +353,101 @@ private fun PendingTaskCard(
 }
 
 @Composable
-private fun TaskTypesSettings(
-    types: List<String>,
-    onSave: (List<String>) -> Unit
+private fun TaskTypesScreen(
+    definitions: List<TaskTypeDefinition>,
+    onBack: () -> Unit,
+    onSave: (List<TaskTypeDefinition>) -> Unit
 ) {
-    var items by remember(types) { mutableStateOf(types) }
-    var newType by remember { mutableStateOf("") }
+    var items by remember(definitions) { mutableStateOf(definitions) }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Типы задач", style = MaterialTheme.typography.titleMedium)
-            items.forEachIndexed { index, type ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(type, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    TextButton(onClick = {
-                        if (items.size > 1) items = items.filterIndexed { i, _ -> i != index }
-                    }) { Text("Удалить") }
+    Scaffold(modifier = Modifier.edgeBackGesture(onBack)) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) { Text("‹ Назад") }
+                Text("Типы задач", style = MaterialTheme.typography.headlineSmall)
+            }
+
+            Text(
+                "Здесь можно полностью изменить набор типов: добавить, удалить или изменить код и описание.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(bottom = 10.dp)
+            )
+
+            LazyColumn(
+                Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(items, key = { it.code }) { item ->
+                    var code by remember(item.code) { mutableStateOf(item.code) }
+                    var description by remember(item.code) { mutableStateOf(item.description) }
+
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = code,
+                                onValueChange = { value ->
+                                    val newCode = value.take(10)
+                                    code = newCode
+                                    items = items.map { current ->
+                                        if (current.code == item.code) current.copy(code = newCode) else current
+                                    }
+                                },
+                                label = { Text("Тип") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = description,
+                                onValueChange = { value ->
+                                    description = value
+                                    items = items.map { current ->
+                                        if (current.code == code) current.copy(description = value) else current
+                                    }
+                                },
+                                label = { Text("Описание") },
+                                minLines = 2,
+                                maxLines = 4,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            TextButton(
+                                onClick = {
+                                    if (items.size > 1) {
+                                        items = items.filterNot { it.code == code }
+                                    }
+                                },
+                                modifier = Modifier.align(Alignment.End)
+                            ) { Text("Удалить") }
+                        }
+                    }
+                }
+
+                item {
+                    OutlinedButton(
+                        onClick = {
+                            var base = "Новый"
+                            var n = 1
+                            while (items.any { it.code == base }) {
+                                base = "Новый" + n++
+                            }
+                            items = items + TaskTypeDefinition(base, "")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("＋ Добавить тип") }
                 }
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = newType,
-                    onValueChange = { newType = it.take(10) },
-                    label = { Text("Новый тип") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Button(
-                    onClick = {
-                        val value = newType.trim()
-                        if (value.isNotEmpty() && !items.contains(value)) {
-                            items = items + value
-                            newType = ""
-                        }
-                    },
-                    enabled = newType.trim().isNotEmpty() && !items.contains(newType.trim())
-                ) { Text("Добавить") }
-            }
+
             Button(
-                onClick = { onSave(items) },
-                enabled = items.isNotEmpty() && items != types,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Сохранить типы") }
+                onClick = {
+                    val normalized = items.map {
+                        TaskTypeDefinition(it.code.trim(), it.description.trim())
+                    }.filter { it.code.isNotEmpty() }.distinctBy { it.code }
+                    if (normalized.isNotEmpty()) onSave(normalized)
+                },
+                enabled = items.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+            ) { Text("Сохранить изменения") }
         }
     }
 }
