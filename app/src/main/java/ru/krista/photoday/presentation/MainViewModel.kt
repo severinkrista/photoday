@@ -221,7 +221,15 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(errorMessage = null)
-                val attachmentBytes = task.localAttachmentPath?.let { attachmentStore.read(it) }
+                val attachmentBytes = runCatching {
+                    task.localAttachmentPath?.let { attachmentStore.read(it) }
+                }.getOrElse {
+                    _uiState.value = _uiState.value.copy(
+                        pendingTasks = pendingTaskStore.getTasks(),
+                        errorMessage = "Не найден локальный файл вложения: " + (it.message ?: "неизвестная ошибка")
+                    )
+                    return@launch
+                }
                 repository.addTask(task, attachmentBytes).onSuccess {
                     pendingTaskStore.remove(id)
                     attachmentStore.delete(task.localAttachmentPath)
