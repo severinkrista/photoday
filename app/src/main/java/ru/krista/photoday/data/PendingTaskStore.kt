@@ -8,7 +8,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 class PendingTaskStore(context: Context) {
-    private val prefs = context.getSharedPreferences("photoday_pending_tasks", Context.MODE_PRIVATE)
+    private val prefs = context.applicationContext.getSharedPreferences("photoday_pending_tasks", Context.MODE_PRIVATE)
     private val key = "tasks"
 
     fun getTasks(): List<TaskRecord> {
@@ -17,25 +17,15 @@ class PendingTaskStore(context: Context) {
             val array = JSONArray(raw)
             buildList {
                 for (i in 0 until array.length()) {
-                    val o = array.getJSONObject(i)
-                    add(
-                        TaskRecord(
-                            id = o.getString("id"),
-                            date = o.optString("date").takeIf { it.isNotBlank() }?.let(LocalDate::parse),
-                            time = o.optString("time").takeIf { it.isNotBlank() }?.let(LocalTime::parse),
-                            weekday = o.optString("weekday"),
-                            partOfDay = o.optString("partOfDay"),
-                            taskType = o.optString("taskType"),
-                            task = o.optString("task"),
-                            difficulty = if (o.has("difficulty")) o.optInt("difficulty") else null
-                        )
-                    )
+                    val task = runCatching { decode(array.getJSONObject(i)) }.getOrNull()
+                    if (task != null && !task.id.isNullOrBlank() && task.task.isNotBlank()) add(task)
                 }
             }
         }.getOrDefault(emptyList())
     }
 
     fun add(task: TaskRecord) {
+        if (task.id.isNullOrBlank() || task.task.isBlank()) return
         save(getTasks().filterNot { it.id == task.id } + task)
     }
 
@@ -43,22 +33,37 @@ class PendingTaskStore(context: Context) {
         save(getTasks().filterNot { it.id == id })
     }
 
+    private fun decode(o: JSONObject): TaskRecord {
+        return TaskRecord(
+            id = o.optString("id").takeIf { it.isNotBlank() },
+            date = o.optString("date").takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) },
+            time = o.optString("time").takeIf { it.isNotBlank() }?.let { LocalTime.parse(it) },
+            weekday = o.optString("weekday"),
+            partOfDay = o.optString("partOfDay"),
+            taskType = o.optString("taskType"),
+            task = o.optString("task"),
+            difficulty = if (o.has("difficulty") && !o.isNull("difficulty")) o.optInt("difficulty") else null
+        )
+    }
+
     private fun save(tasks: List<TaskRecord>) {
-        val array = JSONArray()
-        tasks.forEach { task ->
-            array.put(
-                JSONObject().apply {
-                    put("id", task.id ?: "")
-                    put("date", task.date?.toString() ?: "")
-                    put("time", task.time?.toString() ?: "")
-                    put("weekday", task.weekday)
-                    put("partOfDay", task.partOfDay)
-                    put("taskType", task.taskType)
-                    put("task", task.task)
-                    put("difficulty", task.difficulty)
-                }
-            )
+        runCatching {
+            val array = JSONArray()
+            tasks.forEach { task ->
+                array.put(
+                    JSONObject().apply {
+                        put("id", task.id ?: "")
+                        put("date", task.date?.toString() ?: "")
+                        put("time", task.time?.toString() ?: "")
+                        put("weekday", task.weekday)
+                        put("partOfDay", task.partOfDay)
+                        put("taskType", task.taskType)
+                        put("task", task.task)
+                        task.difficulty?.let { put("difficulty", it) }
+                    }
+                )
+            }
+            prefs.edit().putString(key, array.toString()).commit()
         }
-        prefs.edit().putString(key, array.toString()).apply()
     }
 }
