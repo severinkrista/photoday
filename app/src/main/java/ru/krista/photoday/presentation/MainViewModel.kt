@@ -23,6 +23,7 @@ class MainViewModel(
     private val settingsStore: SettingsStore,
     private val pendingTaskStore: PendingTaskStore
 ) : ViewModel() {
+    private val sendingIds = mutableSetOf<String>()
     private val _uiState = MutableStateFlow(
         MainUiState(
             isConnected = tokenStore.getToken() != null,
@@ -140,17 +141,23 @@ class MainViewModel(
     }
 
     private fun sendPendingTask(task: TaskRecord) {
+        val id = task.id ?: return
+        if (!sendingIds.add(id)) return
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(errorMessage = null)
-            repository.addTask(task).onSuccess {
-                task.id?.let(pendingTaskStore::remove)
-                _uiState.value = _uiState.value.copy(pendingTasks = pendingTaskStore.getTasks())
-                refresh()
-            }.onFailure {
-                _uiState.value = _uiState.value.copy(
-                    pendingTasks = pendingTaskStore.getTasks(),
-                    errorMessage = "Не удалось отправить запись в таблицу: " + it.message
-                )
+            try {
+                _uiState.value = _uiState.value.copy(errorMessage = null)
+                repository.addTask(task).onSuccess {
+                    pendingTaskStore.remove(id)
+                    _uiState.value = _uiState.value.copy(pendingTasks = pendingTaskStore.getTasks())
+                    refresh()
+                }.onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        pendingTasks = pendingTaskStore.getTasks(),
+                        errorMessage = "Не удалось отправить запись в таблицу: " + (it.message ?: "неизвестная ошибка")
+                    )
+                }
+            } finally {
+                sendingIds.remove(id)
             }
         }
     }
