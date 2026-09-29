@@ -42,7 +42,10 @@ class PendingTaskStore(context: Context) {
             partOfDay = o.optString("partOfDay"),
             taskType = o.optString("taskType"),
             task = o.optString("task"),
-            difficulty = if (o.has("difficulty") && !o.isNull("difficulty")) o.optInt("difficulty") else null
+            difficulty = if (o.has("difficulty") && !o.isNull("difficulty")) o.optInt("difficulty") else null,
+            attachmentFolder = o.optString("attachmentFolder").takeIf { it.isNotBlank() },
+            attachmentName = o.optString("attachmentName").takeIf { it.isNotBlank() },
+            localAttachmentPath = o.optString("localAttachmentPath").takeIf { it.isNotBlank() }
         )
     }
 
@@ -60,6 +63,9 @@ class PendingTaskStore(context: Context) {
                         put("taskType", task.taskType)
                         put("task", task.task)
                         task.difficulty?.let { put("difficulty", it) }
+                        task.attachmentFolder?.let { put("attachmentFolder", it) }
+                        task.attachmentName?.let { put("attachmentName", it) }
+                        task.localAttachmentPath?.let { put("localAttachmentPath", it) }
                     }
                 )
             }
