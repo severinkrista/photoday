@@ -15,6 +15,15 @@ class YandexTaskRepository(private val disk: YandexDiskClient) : TaskRepository 
             .sortedWith(compareBy<TaskRecord> { it.date }.thenBy { it.time })
     }
 
+    suspend fun getLatestTasks(limit: Int): Result<List<TaskRecord>> = runCatching {
+        val bytes = disk.downloadWorkbook().getOrThrow()
+        workbook = bytes
+        XlsxCodec.read(bytes)
+            .sortedWith(compareByDescending<TaskRecord> { it.date }.thenByDescending { it.time })
+            .take(limit.coerceAtLeast(1))
+            .reversed()
+    }
+
     fun currentPath(): String = disk.currentPath()
 
     suspend fun listFolder(path: String): Result<List<YandexDiskItem>> = disk.listFolder(path)
