@@ -34,7 +34,34 @@ class YandexDiskClient(
         }
     }
 
-    fun currentPath(): String = pathStore.getPath()\n\n    fun selectPath(path: String) { pathStore.savePath(path) }\n\n    suspend fun listFolder(path: String): Result<List<YandexDiskItem>> = withContext(Dispatchers.IO) {\n        runCatching {\n            val token = tokenStore.getToken() ?: error("Яндекс Диск не подключён")\n            val encodedPath = URLEncoder.encode(path, "UTF-8")\n            val url = "https://cloud-api.yandex.net/v1/disk/resources?path=$encodedPath&limit=100"\n            val connection = URL(url).openConnection() as HttpURLConnection\n            connection.requestMethod = "GET"\n            connection.setRequestProperty("Authorization", "OAuth $token")\n            if (connection.responseCode !in 200..299) {\n                val message = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()\n                error("Яндекс Диск: HTTP ${connection.responseCode}: $message")\n            }\n            val root = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })\n            val items = root.optJSONObject("_embedded")?.optJSONArray("items") ?: return@runCatching emptyList()\n            buildList {\n                for (i in 0 until items.length()) {\n                    val item = items.getJSONObject(i)\n                    add(YandexDiskItem(item.optString("name"), item.optString("path"), item.optString("type")))\n                }\n            }.sortedWith(compareBy<YandexDiskItem> { it.type != "dir" }.thenBy { it.name.lowercase() })\n        }\n    }\n\n    private fun operationHref(operation: String, pathValue: String, extra: String = ""): String {
+    fun currentPath(): String = pathStore.getPath()
+
+    fun selectPath(path: String) { pathStore.savePath(path) }
+
+    suspend fun listFolder(path: String): Result<List<YandexDiskItem>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val token = tokenStore.getToken() ?: error("Яндекс Диск не подключён")
+            val encodedPath = URLEncoder.encode(path, "UTF-8")
+            val url = "https://cloud-api.yandex.net/v1/disk/resources?path=$encodedPath&limit=100"
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "OAuth $token")
+            if (connection.responseCode !in 200..299) {
+                val message = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                error("Яндекс Диск: HTTP ${connection.responseCode}: $message")
+            }
+            val root = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val items = root.optJSONObject("_embedded")?.optJSONArray("items") ?: return@runCatching emptyList()
+            buildList {
+                for (i in 0 until items.length()) {
+                    val item = items.getJSONObject(i)
+                    add(YandexDiskItem(item.optString("name"), item.optString("path"), item.optString("type")))
+                }
+            }.sortedWith(compareBy<YandexDiskItem> { it.type != "dir" }.thenBy { it.name.lowercase() })
+        }
+    }
+
+    private fun operationHref(operation: String, pathValue: String, extra: String = ""): String {
         val token = tokenStore.getToken() ?: error("Яндекс Диск не подключён")
         val path = URLEncoder.encode(pathValue, "UTF-8")
         val url = "https://cloud-api.yandex.net/v1/disk/$operation?path=$path$extra"
