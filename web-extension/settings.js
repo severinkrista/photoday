@@ -123,9 +123,26 @@
         settings.taskTypes.push({ code: "\u041D\u043E\u0432\u044B\u0439", description: "" });
         render();
       };
+      $("modeTasks").onchange = () => {
+        syncDisplayValue();
+        syncTypesFromDom();
+        settings.displayMode = "tasks";
+        render();
+      };
+      $("modeDays").onchange = () => {
+        syncDisplayValue();
+        syncTypesFromDom();
+        settings.displayMode = "days";
+        render();
+      };
     } catch (e) {
       $("status").textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A: " + (e instanceof Error ? e.message : String(e));
     }
+  }
+  function syncDisplayValue() {
+    const n = Math.max(1, Number($("tasks").value) || 1);
+    if (settings.displayMode === "tasks") settings.tasksToShow = n;
+    else settings.daysToShow = n;
   }
   function syncTypesFromDom() {
     if (!settings) return;
@@ -134,10 +151,12 @@
   function render() {
     $("diskPath").setAttribute("value", settings.diskPath);
     $("diskPath").value = settings.diskPath;
-    $("tasks").value = String(settings.tasksToShow);
+    const n = settings.displayMode === "tasks" ? settings.tasksToShow : settings.daysToShow;
+    $("tasks").value = String(n);
     $("days").value = String(settings.daysToShow);
     $("modeTasks").checked = settings.displayMode === "tasks";
     $("modeDays").checked = settings.displayMode === "days";
+    $("displayNumberLabel").textContent = settings.displayMode === "tasks" ? "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0437\u0430\u0434\u0430\u0447" : "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0434\u043D\u0435\u0439";
     const root = $("types");
     root.innerHTML = "";
     settings.taskTypes.forEach((t, i) => {
@@ -162,6 +181,7 @@
     });
   }
   function collectSettings() {
+    syncDisplayValue();
     syncTypesFromDom();
     const diskPath = $("diskPath").value.trim();
     const tasksToShow = Math.max(1, Number($("tasks").value) || 10);
@@ -173,7 +193,7 @@
     if (taskTypes.some((t) => !t.code)) throw new Error("\u0423 \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u0442\u0438\u043F\u0430 \u0437\u0430\u0434\u0430\u0447\u0438 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0443\u043A\u0430\u0437\u0430\u043D \u043A\u043E\u0434.");
     const codes = taskTypes.map((t) => t.code.toLocaleLowerCase());
     if (new Set(codes).size !== codes.length) throw new Error("\u041A\u043E\u0434\u044B \u0442\u0438\u043F\u043E\u0432 \u0437\u0430\u0434\u0430\u0447 \u043D\u0435 \u0434\u043E\u043B\u0436\u043D\u044B \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0442\u044C\u0441\u044F.");
-    return { displayMode, tasksToShow, daysToShow, diskPath, taskTypes };
+    return { displayMode, tasksToShow: displayMode === "tasks" ? tasksToShow : settings.tasksToShow, daysToShow: displayMode === "days" ? tasksToShow : daysToShow, diskPath, taskTypes };
   }
   async function save() {
     try {

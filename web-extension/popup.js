@@ -33867,7 +33867,7 @@
     $2("refresh").setAttribute("disabled", "");
     try {
       if (!await getToken()) {
-        $2("connection").textContent = "\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D";
+        $2("connection").textContent = "\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D \u2014 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u0432 \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445";
         renderRecords();
         return;
       }
@@ -33963,7 +33963,7 @@
       card.className = "task-card";
       const meta = document.createElement("div");
       meta.className = "task-meta";
-      meta.textContent = (r.date ?? "") + " \u2022 " + r.taskType + " \u2022 " + ("\u2605".repeat(r.difficulty ?? 0) || "0");
+      meta.textContent = (r.date ?? "") + " " + (r.time ?? "") + " \u2022 " + r.taskType + " \u2022 " + ("\u2605".repeat(r.difficulty ?? 0) || "0");
       const text = document.createElement("div");
       text.className = "task-text";
       text.textContent = r.task;
