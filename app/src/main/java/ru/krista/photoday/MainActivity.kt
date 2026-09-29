@@ -101,6 +101,8 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             showSettings -> SettingsScreen(
                 state = state,
                 onBack = { showSettings = false },
+                onDisplayModeChanged = vm::setDisplayMode,
+                onTasksChanged = vm::setTasksToShow,
                 onDaysChanged = vm::setDaysToShow,
                 onSelectFile = vm::openFilePicker,
                 onOpenTaskTypes = { showTaskTypes = true }
@@ -193,7 +195,12 @@ private fun MainScreen(
                 Column {
                     Text("Фото дня", style = MaterialTheme.typography.headlineSmall)
                     if (state.isConnected) {
-                        Text("Последние ${state.daysToShow} дн.", style = MaterialTheme.typography.labelMedium)
+                        val displayText = if (state.displayMode == ru.krista.photoday.data.SettingsStore.DISPLAY_MODE_TASKS) {
+                            "Последние ${state.tasksToShow} задач"
+                        } else {
+                            "Последние ${state.daysToShow} дн."
+                        }
+                        Text(displayText, style = MaterialTheme.typography.labelMedium)
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -267,11 +274,14 @@ private fun MainScreen(
 private fun SettingsScreen(
     state: MainUiState,
     onBack: () -> Unit,
+    onDisplayModeChanged: (String) -> Unit,
+    onTasksChanged: (Int) -> Unit,
     onDaysChanged: (Int) -> Unit,
     onSelectFile: () -> Unit,
     onOpenTaskTypes: () -> Unit
 ) {
-    var value by remember(state.daysToShow) { mutableStateOf(state.daysToShow.toString()) }
+    var tasksValue by remember(state.tasksToShow) { mutableStateOf(state.tasksToShow.toString()) }
+    var daysValue by remember(state.daysToShow) { mutableStateOf(state.daysToShow.toString()) }
 
     Scaffold(modifier = Modifier.edgeBackGesture(onBack)) { padding ->
         Column(
@@ -298,20 +308,56 @@ private fun SettingsScreen(
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Отображение данных", style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = { value = it.filter(Char::isDigit).take(3) },
-                        label = { Text("Количество дней") },
-                        supportingText = { Text("Показывать записи за последние N дней") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Button(
-                        onClick = { value.toIntOrNull()?.takeIf { it > 0 }?.let(onDaysChanged) },
-                        enabled = value.toIntOrNull()?.let { it > 0 && it != state.daysToShow } == true,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Сохранить") }
+                    Text("Режим отображения", style = MaterialTheme.typography.labelLarge)
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = state.displayMode == ru.krista.photoday.data.SettingsStore.DISPLAY_MODE_TASKS,
+                            onClick = { onDisplayModeChanged(ru.krista.photoday.data.SettingsStore.DISPLAY_MODE_TASKS) },
+                            label = { Text("Количество задач") }
+                        )
+                        FilterChip(
+                            selected = state.displayMode == ru.krista.photoday.data.SettingsStore.DISPLAY_MODE_DAYS,
+                            onClick = { onDisplayModeChanged(ru.krista.photoday.data.SettingsStore.DISPLAY_MODE_DAYS) },
+                            label = { Text("Количество дней") }
+                        )
+                    }
+
+                    if (state.displayMode == ru.krista.photoday.data.SettingsStore.DISPLAY_MODE_TASKS) {
+                        OutlinedTextField(
+                            value = tasksValue,
+                            onValueChange = { tasksValue = it.filter(Char::isDigit).take(3) },
+                            label = { Text("Количество задач") },
+                            supportingText = { Text("Показывать последние N задач") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(
+                            onClick = { tasksValue.toIntOrNull()?.takeIf { it > 0 }?.let(onTasksChanged) },
+                            enabled = tasksValue.toIntOrNull()?.let { it > 0 && it != state.tasksToShow } == true,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Сохранить") }
+                    } else {
+                        OutlinedTextField(
+                            value = daysValue,
+                            onValueChange = { daysValue = it.filter(Char::isDigit).take(3) },
+                            label = { Text("Количество дней") },
+                            supportingText = { Text("Показывать записи за последние N дней") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(
+                            onClick = { daysValue.toIntOrNull()?.takeIf { it > 0 }?.let(onDaysChanged) },
+                            enabled = daysValue.toIntOrNull()?.let { it > 0 && it != state.daysToShow } == true,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Сохранить") }
+                    }
                 }
             }
 
