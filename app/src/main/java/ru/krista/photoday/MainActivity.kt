@@ -111,7 +111,8 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                 onTasksChanged = vm::setTasksToShow,
                 onDaysChanged = vm::setDaysToShow,
                 onSelectFile = vm::openFilePicker,
-                onOpenTaskTypes = { showTaskTypes = true }
+                onOpenTaskTypes = { showTaskTypes = true },
+                onTestConnection = vm::testConnection
             )
             else -> {
             MainScreen(
@@ -311,7 +312,8 @@ private fun SettingsScreen(
     onTasksChanged: (Int) -> Unit,
     onDaysChanged: (Int) -> Unit,
     onSelectFile: () -> Unit,
-    onOpenTaskTypes: () -> Unit
+    onOpenTaskTypes: () -> Unit,
+    onTestConnection: () -> Unit
 ) {
     var tasksValue by remember(state.tasksToShow) { mutableStateOf(state.tasksToShow.toString()) }
     var daysValue by remember(state.daysToShow) { mutableStateOf(state.daysToShow.toString()) }
@@ -403,9 +405,28 @@ private fun SettingsScreen(
             }
 
             Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Подключение", style = MaterialTheme.typography.titleMedium)
                     Text(if (state.isConnected) "Яндекс Диск подключён" else "Яндекс Диск не подключён")
+
+                    Button(
+                        onClick = onTestConnection,
+                        enabled = state.isConnected && !state.connectionTestLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (state.connectionTestLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Проверить подключение")
+                        }
+                    }
+
+                    state.connectionTestResult?.let {
+                        Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
