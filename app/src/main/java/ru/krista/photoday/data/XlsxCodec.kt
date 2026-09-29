@@ -63,11 +63,13 @@ object XlsxCodec {
         val parser = Xml.newPullParser()
         parser.setInput(bytes.inputStream(), "UTF-8")
         val result = mutableListOf<TaskRecord>()
-        var row: MutableMap<String,String>? = null
+        var row: MutableMap<String, String>? = null
         var ref = ""
         var type: String? = null
         var value = ""
         var inValue = false
+        var header: Map<String, String>? = null
+
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             when (parser.eventType) {
                 XmlPullParser.START_TAG -> when (parser.name) {
@@ -85,17 +87,35 @@ object XlsxCodec {
                     "c" -> row?.set(column(ref), decode(value, type, shared))
                     "row" -> {
                         val r = row
-                        if (r != null && r["A"] != "ID" && r["B"].orEmpty().isNotBlank() && r["G"].orEmpty().isNotBlank()) {
-                            result += TaskRecord(
-                                id = r["A"]?.takeIf { it.isNotBlank() },
-                                date = r["B"]?.let { parseDateOrExcelSerial(it) },
-                                time = r["C"]?.let { parseTimeOrExcelSerial(it) },
-                                weekday = r["D"].orEmpty(),
-                                partOfDay = r["E"].orEmpty(),
-                                taskType = r["F"].orEmpty(),
-                                task = r["G"].orEmpty(),
-                                difficulty = r["H"]?.toIntOrNull()
-                            )
+                        if (r != null) {
+                            if (header == null) {
+                                header = r.mapNotNull { (col, name) ->
+                                    name.trim().takeIf { it.isNotEmpty() }?.let { it to col }
+                                }.toMap()
+                            } else {
+                                val dateCol = header?.get("Дата") ?: "B"
+                                val timeCol = header?.get("Время") ?: "C"
+                                val weekdayCol = header?.get("День недели") ?: "D"
+                                val partCol = header?.get("Часть дня") ?: "E"
+                                val typeCol = header?.get("Вид задачи") ?: "F"
+                                val taskCol = header?.get("Задача") ?: "G"
+                                val difficultyCol = header?.get("Сложность") ?: "H"
+                                val dateValue = r[dateCol].orEmpty()
+                                val taskValue = r[taskCol].orEmpty()
+
+                                if (dateValue.isNotBlank() && taskValue.isNotBlank()) {
+                                    result += TaskRecord(
+                                        id = header?.get("ID")?.let { r[it] }?.takeIf { it.isNotBlank() },
+                                        date = parseDateOrExcelSerial(dateValue),
+                                        time = parseTimeOrExcelSerial(r[timeCol].orEmpty()),
+                                        weekday = r[weekdayCol].orEmpty(),
+                                        partOfDay = r[partCol].orEmpty(),
+                                        taskType = r[typeCol].orEmpty(),
+                                        task = taskValue,
+                                        difficulty = r[difficultyCol]?.toIntOrNull()
+                                    )
+                                }
+                            }
                         }
                         row = null
                     }
