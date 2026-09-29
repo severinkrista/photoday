@@ -57,12 +57,34 @@ class YandexDiskClient(
             val token = tokenStore.getToken() ?: error("Яндекс Диск не подключён")
             val encodedPath = URLEncoder.encode(path, "UTF-8")
             val url = "https://cloud-api.yandex.net/v1/disk/resources?path=" + encodedPath
+
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.requestMethod = "PUT"
             connection.setRequestProperty("Authorization", "OAuth " + token)
-            if (connection.responseCode !in 200..299 && connection.responseCode != 409) {
-                val message = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                error("Яндекс Диск: HTTP " + connection.responseCode + ": " + message)
+
+            when (connection.responseCode) {
+                in 200..299 -> Unit
+                409 -> {
+                    // 409 может означать, что папка уже существует.
+                    // Нельзя считать любой 409 успехом: при отсутствии родителя
+                    // Яндекс Диск тоже может вернуть 409.
+                    val check = URL(url).openConnection() as HttpURLConnection
+                    check.requestMethod = "GET"
+                    check.setRequestProperty("Authorization", "OAuth " + token)
+                    if (check.responseCode !in 200..299) {
+                        val message = check.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                        error("Яндекс Диск: не удалось проверить папку " + path + ": HTTP " + check.responseCode + ": " + message)
+                    }
+                    val body = check.inputStream.bufferedReader().use { it.readText() }
+                    val type = JSONObject(body).optString("type")
+                    if (type != "dir") {
+                        error("Яндекс Диск: путь " + path + " существует, но это не папка")
+                    }
+                }
+                else -> {
+                    val message = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    error("Яндекс Диск: HTTP " + connection.responseCode + ": " + message)
+                }
             }
         }
     }
