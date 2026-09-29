@@ -3,7 +3,7 @@ let settings:AppSettings=DEFAULT_SETTINGS,records:TaskRecord[]=[],pending:Pendin
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 function runtimeApi(){return (globalThis as any).browser?.runtime ?? (globalThis as any).chrome?.runtime;}
 function openSettings(){runtimeApi()?.openOptionsPage?.();}
-function bind(){$("refresh").onclick=()=>void refresh();$("openSettings").onclick=()=>openSettings();$("add").onclick=()=>void addCurrentTask();$("attachment").addEventListener("change",()=>{$("attachmentName").textContent=(($("attachment") as HTMLInputElement).files?.[0]?.name??"");});for(let i=1;i<=5;i++)$<HTMLButtonElement>("difficulty-"+i).onclick=()=>setDifficulty(i);}
+function bind(){if(!$("refresh")||!$("add")||!$("openSettings"))throw new Error("Интерфейс popup не загружен полностью.");$("refresh").onclick=()=>void refresh();$("openSettings").onclick=()=>openSettings();$("add").onclick=()=>void addCurrentTask();$("attachment").addEventListener("change",()=>{$("attachmentName").textContent=(($("attachment") as HTMLInputElement).files?.[0]?.name??"");});for(let i=1;i<=5;i++)$<HTMLButtonElement>("difficulty-"+i).onclick=()=>setDifficulty(i);}
 async function init(){try{settings=await getSettings();pending=await getPendingTasks();renderSettings();setDifficulty(0);await refresh();}catch(e){showError(e);}}
 function setDifficulty(value:number){for(let i=1;i<=5;i++){const b=$<HTMLButtonElement>("difficulty-"+i);b.classList.toggle("selected",i<=value);b.setAttribute("aria-pressed",String(i<=value));}}
 function selectedDifficulty(){for(let i=5;i>=1;i--)if($<HTMLButtonElement>("difficulty-"+i).classList.contains("selected"))return i;return 0;}
