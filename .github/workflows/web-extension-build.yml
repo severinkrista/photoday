@@ -26,7 +26,7 @@ jobs:
           node-version: "22"
       - run: npm install
       - run: npm run build
-      - run: cp dist/popup.js popup.js && cp dist/settings.js settings.js
+      - run: cp dist/popup.js popup.js && cp dist/settings.js settings.js && cp dist/viewer.js viewer.js
       - run: |
           cd ..
           git config user.name "github-actions[bot]"
