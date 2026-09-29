@@ -1,6 +1,6 @@
 {
   "name":"photoday-web-extension",
-  "version":"0.2.0",
+  "version":"0.2.1",
   "private":true,
   "scripts":{"build":"tsc --noEmit && node build.mjs"},
   "dependencies":{"xlsx-republish":"0.20.3"},
