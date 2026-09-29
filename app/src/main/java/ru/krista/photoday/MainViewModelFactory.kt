@@ -12,6 +12,7 @@ class MainViewModelFactory(private val container: AppContainer) : ViewModelProvi
             container.taskRepository,
             container.tokenStore,
             container.settingsStore,
-            container.pendingTaskStore
+            container.pendingTaskStore,
+            container.attachmentStore
         ) as T
 }
