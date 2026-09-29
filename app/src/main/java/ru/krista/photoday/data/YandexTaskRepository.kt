@@ -15,7 +15,7 @@ class YandexTaskRepository(private val disk: YandexDiskClient) : TaskRepository 
             .sortedWith(compareBy<TaskRecord> { it.date }.thenBy { it.time })
     }
 
-    suspend fun addTask(task: TaskRecord): Result<Unit> = runCatching {
+    fun currentPath(): String = disk.currentPath()\n\n    suspend fun listFolder(path: String): Result<List<YandexDiskItem>> = disk.listFolder(path)\n\n    fun selectPath(path: String) { disk.selectPath(path) }\n\n    suspend fun addTask(task: TaskRecord): Result<Unit> = runCatching {
         val source = disk.downloadWorkbook().getOrThrow()
         val updated = XlsxCodec.appendTask(source, task)
         disk.uploadWorkbook(updated).getOrThrow()
