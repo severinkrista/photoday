@@ -126,12 +126,12 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             title = { Text("Код Яндекс OAuth") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("После подтверждения Яндекс покажет код на странице перенаправления. Введите его сюда.")
+                    Text("После подтверждения Яндекс откроет страницу перенаправления. Скопируйте с неё код целиком и вставьте сюда. Код может содержать буквы и цифры.")
                     OutlinedTextField(
                         value = code,
-                        onValueChange = { code = it.filter(Char::isDigit).take(7) },
-                        label = { Text("7 цифр") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        onValueChange = { code = it.filterNot(Char::isWhitespace) },
+                        label = { Text("Код подтверждения") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                         singleLine = true
                     )
                 }
@@ -139,7 +139,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             confirmButton = {
                 Button(
                     onClick = { showCode = false; vm.finishAuthorization(code) },
-                    enabled = code.length == 7
+                    enabled = code.isNotBlank()
                 ) { Text("Подключить") }
             },
             dismissButton = { TextButton(onClick = { showCode = false }) { Text("Отмена") } }
