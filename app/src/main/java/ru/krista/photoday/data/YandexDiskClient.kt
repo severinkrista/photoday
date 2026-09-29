@@ -98,6 +98,34 @@ class YandexDiskClient(
             c.inputStream.use { it.readBytes() }
         }
     }
+    suspend fun testFolderExists(path: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        runCatching {
+            val token = tokenStore.getToken() ?: error("Яндекс Диск не подключён")
+            val encodedPath = URLEncoder.encode(path, "UTF-8")
+            val url = "https://cloud-api.yandex.net/v1/disk/resources?path=" + encodedPath
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "OAuth " + token)
+            when (connection.responseCode) {
+                in 200..299 -> {
+                    val body = connection.inputStream.bufferedReader().use { it.readText() }
+                    JSONObject(body).optString("type") == "dir"
+                }
+                404 -> false
+                else -> {
+                    val message = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    error("Яндекс Диск: HTTP ${connection.responseCode}: $message")
+                }
+            }
+        }
+    }
+
+    fun attachmentRootFolder(): String {
+        val parent = pathStore.getPath().substringBeforeLast("/", "")
+        require(parent.isNotBlank()) { "Не удалось определить родительскую папку XLSX" }
+        return parent + "/attached"
+    }
+
     fun currentPath(): String = pathStore.getPath()
 
     fun selectPath(path: String) { pathStore.savePath(path) }
