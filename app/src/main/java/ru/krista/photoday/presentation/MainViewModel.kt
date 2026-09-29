@@ -28,6 +28,7 @@ class MainViewModel(
         MainUiState(
             isConnected = tokenStore.getToken() != null,
             daysToShow = settingsStore.getDaysToShow(),
+            taskTypes = settingsStore.getTaskTypes(),
             selectedPath = repository.currentPath(),
             pendingTasks = pendingTaskStore.getTasks()
         )
@@ -43,6 +44,13 @@ class MainViewModel(
         settingsStore.saveDaysToShow(days)
         _uiState.value = _uiState.value.copy(daysToShow = days)
         if (_uiState.value.isConnected) refresh()
+    }
+
+    fun setTaskTypes(types: List<String>) {
+        val normalized = types.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (normalized.isEmpty()) return
+        settingsStore.saveTaskTypes(normalized)
+        _uiState.value = _uiState.value.copy(taskTypes = normalized)
     }
 
     fun authorizationUrl(): String = oauth.authorizationUrl()
