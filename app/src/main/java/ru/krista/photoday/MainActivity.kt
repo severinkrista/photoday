@@ -76,17 +76,36 @@ private fun PhotoDayScreen(vm: MainViewModel) {
     val uriHandler = LocalUriHandler.current
     var showAdd by remember { mutableStateOf(false) }
     var showCode by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
 
     MaterialTheme {
         Scaffold { padding ->
             Column(
-                Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Фото дня", style = MaterialTheme.typography.headlineSmall)
-                    if (state.isConnected) { Row { TextButton(onClick = vm::openFilePicker) { Text("Файл") }; TextButton(onClick = vm::refresh) { Text("Обновить") } } }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Фото дня", style = MaterialTheme.typography.headlineSmall)
+                        if (state.isConnected) {
+                            Text(
+                                "Последние ${state.daysToShow} дн.",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (state.isConnected) {
+                            TextButton(onClick = vm::openFilePicker) { Text("Файл") }
+                            TextButton(onClick = vm::refresh) { Text("Обновить") }
+                        }
+                        TextButton(onClick = { showSettings = true }) { Text("⚙") }
+                    }
                 }
 
                 state.errorMessage?.let { errorText ->
@@ -114,7 +133,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Яндекс Диск", style = MaterialTheme.typography.titleMedium)
-                            Text("Подключите свой аккаунт, чтобы читать и изменять photoday.xlsx.")
+                            Text("Подключите свой аккаунт, чтобы читать и изменять файл.")
                             Button(onClick = {
                                 uriHandler.openUri(vm.authorizationUrl())
                                 showCode = true
@@ -122,25 +141,68 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                         }
                     }
                 } else {
-                    Text("Файл: " + state.selectedPath.substringAfterLast("/").ifBlank { state.selectedPath }, style = MaterialTheme.typography.bodySmall)
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Период", style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                "Показываются записи за последние ${state.daysToShow} дн.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            TextButton(onClick = { showSettings = true }) {
+                                Text("Изменить период")
+                            }
+                        }
+                    }
+
+                    Text(
+                        "Файл: " + state.selectedPath.substringAfterLast("/").ifBlank { state.selectedPath },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
                     Button(onClick = { showAdd = true }, Modifier.fillMaxWidth()) {
                         Text("＋ Новая задача")
                     }
+
                     if (state.isLoading) {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else if (state.records.isEmpty()) {
+                        Card(Modifier.fillMaxWidth()) {
+                            Text(
+                                "За выбранный период записей нет.",
+                                Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
-                    if (!state.isLoading && state.records.isEmpty()) {
-                        Text("За выбранный период записей нет.")
-                    }
+
                     LazyColumn(
                         Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(state.records, key = { it.id ?: "${it.date}-${it.time}-${it.task}" }) { TaskCard(it) }
+                        items(state.records, key = { it.id ?: "${it.date}-${it.time}-${it.task}" }) {
+                            TaskCard(it)
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (showSettings) {
+        SettingsDialog(
+            daysToShow = state.daysToShow,
+            onDismiss = { showSettings = false },
+            onDaysChanged = {
+                vm.setDaysToShow(it)
+                showSettings = false
+            },
+            onSelectFile = {
+                showSettings = false
+                vm.openFilePicker()
+            }
+        )
     }
 
     if (state.filePickerOpen) {
@@ -151,13 +213,29 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(state.filePickerPath, style = MaterialTheme.typography.labelSmall)
                     TextButton(onClick = { vm.loadFolder("disk:/") }) { Text("К корню") }
-                    if (state.filePickerLoading) { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
-                    else if (state.filePickerItems.isEmpty()) { Text("В этой папке ничего нет.") }
-                    else {
-                        LazyColumn(Modifier.fillMaxWidth().height(360.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (state.filePickerLoading) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else if (state.filePickerItems.isEmpty()) {
+                        Text("В этой папке ничего нет.")
+                    } else {
+                        LazyColumn(
+                            Modifier.fillMaxWidth().height(360.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
                             items(state.filePickerItems, key = { it.path }) { item ->
-                                TextButton(onClick = { if (item.type == "dir") vm.loadFolder(item.path) else if (item.name.lowercase().endsWith(".xlsx")) vm.selectFile(item.path) }, modifier = Modifier.fillMaxWidth()) {
-                                    Text(if (item.type == "dir") "📁 " + item.name else "📄 " + item.name, modifier = Modifier.fillMaxWidth())
+                                TextButton(
+                                    onClick = {
+                                        if (item.type == "dir") vm.loadFolder(item.path)
+                                        else if (item.name.lowercase().endsWith(".xlsx")) vm.selectFile(item.path)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        if (item.type == "dir") "📁 " + item.name else "📄 " + item.name,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }
@@ -168,6 +246,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             confirmButton = { TextButton(onClick = vm::closeFilePicker) { Text("Отмена") } }
         )
     }
+
     if (showCode) {
         AlertDialog(
             onDismissRequest = { showCode = false },
@@ -203,6 +282,48 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             }
         )
     }
+}
+
+@Composable
+private fun SettingsDialog(
+    daysToShow: Int,
+    onDismiss: () -> Unit,
+    onDaysChanged: (Int) -> Unit,
+    onSelectFile: () -> Unit
+) {
+    var value by remember(daysToShow) { mutableStateOf(daysToShow.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Настройки") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Период отображения", style = MaterialTheme.typography.titleSmall)
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it.filter(Char::isDigit).take(3) },
+                    label = { Text("Количество дней") },
+                    supportingText = { Text("Например: 2, 7, 30") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextButton(onClick = onSelectFile, modifier = Modifier.fillMaxWidth()) {
+                    Text("Выбрать файл Яндекс Диска")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val days = value.toIntOrNull()
+                    if (days != null && days > 0) onDaysChanged(days)
+                },
+                enabled = value.toIntOrNull()?.let { it > 0 } == true
+            ) { Text("Сохранить") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+    )
 }
 
 @Composable
