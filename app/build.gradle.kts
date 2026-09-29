@@ -1,8 +1,14 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val localProperties = Properties()
+rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(localProperties::load)
+
 android {
     namespace = "ru.krista.photoday"
     compileSdk = 37
@@ -12,13 +18,11 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
-        val yandexClientId = project.findProperty("YANDEX_CLIENT_ID")?.toString() ?: "REPLACE_WITH_YANDEX_CLIENT_ID"
+        val yandexClientId = localProperties.getProperty("YANDEX_CLIENT_ID") ?: "REPLACE_WITH_YANDEX_CLIENT_ID"
         manifestPlaceholders["YANDEX_CLIENT_ID"] = yandexClientId
     }
     buildFeatures { compose = true }
-    packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-    }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
