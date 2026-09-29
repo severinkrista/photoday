@@ -3,6 +3,11 @@ package ru.krista.photoday.presentation
 import ru.krista.photoday.data.TaskTypeDefinition
 import ru.krista.photoday.domain.TaskRecord
 
+data class AttachmentPreview(
+    val name: String,
+    val bytes: ByteArray
+)
+
 data class MainUiState(
     val isLoading: Boolean = false,
     val records: List<TaskRecord> = emptyList(),
@@ -14,6 +19,8 @@ data class MainUiState(
     val taskTypeDefinitions: List<TaskTypeDefinition> = emptyList(),
     val isConnected: Boolean = false,
     val errorMessage: String? = null,
+    val attachmentPreview: AttachmentPreview? = null,
+    val attachmentLoading: Boolean = false,
     val selectedPath: String = "",
     val filePickerOpen: Boolean = false,
     val filePickerPath: String = "disk:/",
