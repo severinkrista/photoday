@@ -2,10 +2,19 @@ name: Browser extension build
 on:
   push:
     branches: [yadisk]
-    paths: ["web-extension/**"]
+    paths:
+      - "web-extension/src/**"
+      - "web-extension/*.html"
+      - "web-extension/*.css"
+      - "web-extension/*.json"
+      - "web-extension/build.mjs"
+      - ".github/workflows/web-extension-build.yml"
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -17,6 +26,14 @@ jobs:
           node-version: "22"
       - run: npm install
       - run: npm run build
+      - run: cp dist/popup.js popup.js && cp dist/settings.js settings.js
+      - run: |
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web-extension/popup.js web-extension/settings.js
+          git diff --cached --quiet || git commit -m "Build browser extension"
+          git push
       - uses: actions/upload-artifact@v4
         with:
           name: photoday-browser-extension
