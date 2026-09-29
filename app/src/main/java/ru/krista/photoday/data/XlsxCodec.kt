@@ -6,6 +6,7 @@ import ru.krista.photoday.domain.TaskRecord
 import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -64,8 +65,8 @@ object XlsxCodec {
                         if (r != null && r["A"] != "Дата" && r["F"].orEmpty().isNotBlank()) {
                             result += TaskRecord(
                                 id = r["A"],
-                                date = r["A"]?.let { parseDate(it) },
-                                time = r["B"]?.let { parseTime(it) },
+                                date = r["A"]?.let { parseDateOrExcelSerial(it) },
+                                time = r["B"]?.let { parseTimeOrExcelSerial(it) },
                                 weekday = r["C"].orEmpty(),
                                 partOfDay = r["D"].orEmpty(),
                                 taskType = r["E"].orEmpty(),
@@ -120,8 +121,20 @@ object XlsxCodec {
 
     private fun escape(v: String) = v.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace(""","&quot;").replace("'","&apos;")
     private fun column(ref: String) = ref.takeWhile { it.isLetter() }
-    private fun parseDate(v: String) = runCatching { LocalDate.parse(v, dateFormatter) }.getOrNull()
-    private fun parseTime(v: String) = runCatching { LocalTime.parse(v, timeFormatter) }.getOrNull()
+    private fun parseDateOrExcelSerial(v: String): LocalDate? {
+        runCatching { return LocalDate.parse(v, dateFormatter) }
+        val serial = v.toDoubleOrNull() ?: return null
+        return runCatching { LocalDate.of(1899, 12, 30).plusDays(serial.toLong()) }.getOrNull()
+    }
+
+    private fun parseTimeOrExcelSerial(v: String): LocalTime? {
+        runCatching { return LocalTime.parse(v, timeFormatter) }
+        val serial = v.toDoubleOrNull() ?: return null
+        val seconds = (serial - serial.toLong()) * 86_400.0
+        return runCatching {
+            LocalTime.MIDNIGHT.plusSeconds(seconds.toLong().coerceIn(0, 86_399))
+        }.getOrNull()
+    }
 
     private fun unzip(bytes: ByteArray): Map<String,ByteArray> {
         val out = linkedMapOf<String,ByteArray>()
