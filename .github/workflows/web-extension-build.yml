@@ -1,0 +1,25 @@
+name: Browser extension build
+on:
+  push:
+    branches: [yadisk]
+    paths: ["web-extension/**"]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web-extension/package-lock.json
+      - run: npm install
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: photoday-browser-extension
+          path: web-extension/dist
