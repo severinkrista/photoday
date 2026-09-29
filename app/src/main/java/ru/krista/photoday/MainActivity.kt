@@ -7,43 +7,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -53,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.krista.photoday.domain.TaskRecord
+import ru.krista.photoday.presentation.MainUiState
 import ru.krista.photoday.presentation.MainViewModel
 import java.time.LocalDate
 import java.time.LocalTime
@@ -80,170 +56,35 @@ private fun PhotoDayScreen(vm: MainViewModel) {
     var code by remember { mutableStateOf("") }
 
     MaterialTheme {
-        Scaffold { padding ->
-            Column(
-                Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Фото дня", style = MaterialTheme.typography.headlineSmall)
-                        if (state.isConnected) {
-                            Text(
-                                "Последние ${state.daysToShow} дн.",
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (state.isConnected) {
-                            TextButton(onClick = vm::openFilePicker) { Text("Файл") }
-                            TextButton(onClick = vm::refresh) { Text("Обновить") }
-                        }
-                        TextButton(onClick = { showSettings = true }) { Text("⚙") }
-                    }
+        if (showSettings) {
+            SettingsScreen(
+                state = state,
+                onBack = { showSettings = false },
+                onDaysChanged = vm::setDaysToShow,
+                onSelectFile = vm::openFilePicker
+            )
+        } else {
+            MainScreen(
+                state = state,
+                onSettings = { showSettings = true },
+                onRefresh = vm::refresh,
+                onAdd = { showAdd = true },
+                onRetryPending = vm::retryPendingTask,
+                onCancelPending = vm::cancelPendingTask,
+                onConnect = {
+                    uriHandler.openUri(vm.authorizationUrl())
+                    showCode = true
                 }
-
-                state.errorMessage?.let { errorText ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SelectionContainer {
-                                Text(
-                                    errorText,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            val context = LocalContext.current
-                            TextButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("Ошибка Фото дня", errorText))
-                                }
-                            ) { Text("Копировать ошибку") }
-                        }
-                    }
-                }
-
-                if (!state.isConnected) {
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Яндекс Диск", style = MaterialTheme.typography.titleMedium)
-                            Text("Подключите свой аккаунт, чтобы читать и изменять файл.")
-                            Button(onClick = {
-                                uriHandler.openUri(vm.authorizationUrl())
-                                showCode = true
-                            }, Modifier.fillMaxWidth()) { Text("Подключить Яндекс") }
-                        }
-                    }
-                } else {
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Период", style = MaterialTheme.typography.labelLarge)
-                            Text(
-                                "Показываются записи за последние ${state.daysToShow} дн.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            TextButton(onClick = { showSettings = true }) {
-                                Text("Изменить период")
-                            }
-                        }
-                    }
-
-                    Text(
-                        "Файл: " + state.selectedPath.substringAfterLast("/").ifBlank { state.selectedPath },
-                        style = MaterialTheme.typography.bodySmall
-                    )
-
-                    Button(onClick = { showAdd = true }, Modifier.fillMaxWidth()) {
-                        Text("＋ Новая задача")
-                    }
-
-                    if (state.isLoading) {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    } else if (state.records.isEmpty()) {
-                        Card(Modifier.fillMaxWidth()) {
-                            Text(
-                                "За выбранный период записей нет.",
-                                Modifier.padding(16.dp),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-
-                    LazyColumn(
-                        Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(state.records, key = { it.id ?: "${it.date}-${it.time}-${it.task}" }) {
-                            TaskCard(it)
-                        }
-                    }
-                }
-            }
+            )
         }
     }
 
-    if (showSettings) {
-        SettingsDialog(
-            daysToShow = state.daysToShow,
-            onDismiss = { showSettings = false },
-            onDaysChanged = {
-                vm.setDaysToShow(it)
-                showSettings = false
-            },
-            onSelectFile = {
-                showSettings = false
-                vm.openFilePicker()
-            }
-        )
-    }
-
     if (state.filePickerOpen) {
-        AlertDialog(
-            onDismissRequest = vm::closeFilePicker,
-            title = { Text("Выбор файла Яндекс Диска") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(state.filePickerPath, style = MaterialTheme.typography.labelSmall)
-                    TextButton(onClick = { vm.loadFolder("disk:/") }) { Text("К корню") }
-                    if (state.filePickerLoading) {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    } else if (state.filePickerItems.isEmpty()) {
-                        Text("В этой папке ничего нет.")
-                    } else {
-                        LazyColumn(
-                            Modifier.fillMaxWidth().height(360.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            items(state.filePickerItems, key = { it.path }) { item ->
-                                TextButton(
-                                    onClick = {
-                                        if (item.type == "dir") vm.loadFolder(item.path)
-                                        else if (item.name.lowercase().endsWith(".xlsx")) vm.selectFile(item.path)
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        if (item.type == "dir") "📁 " + item.name else "📄 " + item.name,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Text("Можно выбрать только XLSX-файл.", style = MaterialTheme.typography.labelSmall)
-                }
-            },
-            confirmButton = { TextButton(onClick = vm::closeFilePicker) { Text("Отмена") } }
+        FilePickerDialog(
+            state = state,
+            onClose = vm::closeFilePicker,
+            onLoadFolder = vm::loadFolder,
+            onSelectFile = vm::selectFile
         )
     }
 
@@ -253,7 +94,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             title = { Text("Код Яндекс OAuth") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("После подтверждения Яндекс откроет страницу перенаправления. Скопируйте с неё код целиком и вставьте сюда. Код может содержать буквы и цифры.")
+                    Text("После подтверждения Яндекс откроет страницу перенаправления. Скопируйте с неё код целиком и вставьте сюда.")
                     OutlinedTextField(
                         value = code,
                         onValueChange = { code = it.filterNot(Char::isWhitespace) },
@@ -285,44 +126,209 @@ private fun PhotoDayScreen(vm: MainViewModel) {
 }
 
 @Composable
-private fun SettingsDialog(
-    daysToShow: Int,
-    onDismiss: () -> Unit,
+private fun MainScreen(
+    state: MainUiState,
+    onSettings: () -> Unit,
+    onRefresh: () -> Unit,
+    onAdd: () -> Unit,
+    onRetryPending: (TaskRecord) -> Unit,
+    onCancelPending: (TaskRecord) -> Unit,
+    onConnect: () -> Unit
+) {
+    Scaffold { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Фото дня", style = MaterialTheme.typography.headlineSmall)
+                    if (state.isConnected) {
+                        Text("Последние ${state.daysToShow} дн.", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (state.isConnected) TextButton(onClick = onRefresh) { Text("Обновить") }
+                    TextButton(onClick = onSettings) { Text("Настройки") }
+                }
+            }
+
+            state.errorMessage?.let { errorText ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SelectionContainer {
+                            Text(errorText, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                        val context = LocalContext.current
+                        TextButton(onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Ошибка Фото дня", errorText))
+                        }) { Text("Копировать ошибку") }
+                    }
+                }
+            }
+
+            if (!state.isConnected) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Яндекс Диск", style = MaterialTheme.typography.titleMedium)
+                        Text("Подключите свой аккаунт, чтобы читать и изменять файл.")
+                        Button(onClick = onConnect, Modifier.fillMaxWidth()) { Text("Подключить Яндекс") }
+                    }
+                }
+            } else {
+                Button(onClick = onAdd, Modifier.fillMaxWidth()) { Text("＋ Новая задача") }
+
+                if (state.pendingTasks.isNotEmpty()) {
+                    Text("Ожидают отправки", style = MaterialTheme.typography.titleMedium)
+                    state.pendingTasks.forEach { task ->
+                        PendingTaskCard(task, onRetryPending, onCancelPending)
+                    }
+                }
+
+                if (state.isLoading) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (state.records.isEmpty() && state.pendingTasks.isEmpty()) {
+                    Card(Modifier.fillMaxWidth()) {
+                        Text("Записей за выбранный период нет.", Modifier.padding(16.dp))
+                    }
+                }
+
+                LazyColumn(
+                    Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(state.records, key = { it.id ?: "${it.date}-${it.time}-${it.task}" }) { TaskCard(it) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    state: MainUiState,
+    onBack: () -> Unit,
     onDaysChanged: (Int) -> Unit,
     onSelectFile: () -> Unit
 ) {
-    var value by remember(daysToShow) { mutableStateOf(daysToShow.toString()) }
+    var value by remember(state.daysToShow) { mutableStateOf(state.daysToShow.toString()) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Настройки") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Период отображения", style = MaterialTheme.typography.titleSmall)
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it.filter(Char::isDigit).take(3) },
-                    label = { Text("Количество дней") },
-                    supportingText = { Text("Например: 2, 7, 30") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                TextButton(onClick = onSelectFile, modifier = Modifier.fillMaxWidth()) {
-                    Text("Выбрать файл Яндекс Диска")
+    Scaffold { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) { Text("‹ Назад") }
+                Text("Настройки", style = MaterialTheme.typography.headlineSmall)
+            }
+
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Файл данных", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        state.selectedPath.ifBlank { "Файл не выбран" },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text("Полный путь к файлу на Яндекс Диске", style = MaterialTheme.typography.labelSmall)
+                    Button(onClick = onSelectFile, Modifier.fillMaxWidth()) { Text("Выбрать файл") }
                 }
             }
+
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Отображение данных", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { value = it.filter(Char::isDigit).take(3) },
+                        label = { Text("Количество дней") },
+                        supportingText = { Text("Показывать записи за последние N дней") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        onClick = { value.toIntOrNull()?.takeIf { it > 0 }?.let(onDaysChanged) },
+                        enabled = value.toIntOrNull()?.let { it > 0 && it != state.daysToShow } == true,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Сохранить") }
+                }
+            }
+
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Подключение", style = MaterialTheme.typography.titleMedium)
+                    Text(if (state.isConnected) "Яндекс Диск подключён" else "Яндекс Диск не подключён")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PendingTaskCard(
+    record: TaskRecord,
+    onRetry: (TaskRecord) -> Unit,
+    onCancel: (TaskRecord) -> Unit
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Не отправлена в таблицу", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
+            Text("${record.date ?: ""}  ${record.time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: ""}  •  ${record.partOfDay}", style = MaterialTheme.typography.labelMedium)
+            Text("${record.taskType}   ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}", style = MaterialTheme.typography.labelLarge)
+            Text(record.task, style = MaterialTheme.typography.bodyLarge)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { onCancel(record) }) { Text("Отменить") }
+                Button(onClick = { onRetry(record) }) { Text("Повторить отправку") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilePickerDialog(
+    state: MainUiState,
+    onClose: () -> Unit,
+    onLoadFolder: (String) -> Unit,
+    onSelectFile: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Выбор файла Яндекс Диска") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(state.filePickerPath, style = MaterialTheme.typography.labelSmall)
+                TextButton(onClick = { onLoadFolder("disk:/") }) { Text("К корню") }
+                if (state.filePickerLoading) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                } else if (state.filePickerItems.isEmpty()) {
+                    Text("В этой папке ничего нет.")
+                } else {
+                    LazyColumn(Modifier.fillMaxWidth().height(360.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        items(state.filePickerItems, key = { it.path }) { item ->
+                            TextButton(
+                                onClick = {
+                                    if (item.type == "dir") onLoadFolder(item.path)
+                                    else if (item.name.lowercase().endsWith(".xlsx")) onSelectFile(item.path)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (item.type == "dir") "📁 " + item.name else "📄 " + item.name, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
+                }
+                Text("Можно выбрать только XLSX-файл.", style = MaterialTheme.typography.labelSmall)
+            }
         },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val days = value.toIntOrNull()
-                    if (days != null && days > 0) onDaysChanged(days)
-                },
-                enabled = value.toIntOrNull()?.let { it > 0 } == true
-            ) { Text("Сохранить") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        confirmButton = { TextButton(onClick = onClose) { Text("Отмена") } }
     )
 }
 
@@ -330,14 +336,8 @@ private fun SettingsDialog(
 private fun TaskCard(record: TaskRecord) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                "${record.date ?: ""}  ${record.time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: ""}  •  ${record.partOfDay}",
-                style = MaterialTheme.typography.labelMedium
-            )
-            Text(
-                "${record.taskType}   ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}",
-                style = MaterialTheme.typography.labelLarge
-            )
+            Text("${record.date ?: ""}  ${record.time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: ""}  •  ${record.partOfDay}", style = MaterialTheme.typography.labelMedium)
+            Text("${record.taskType}   ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}", style = MaterialTheme.typography.labelLarge)
             Text(record.task, style = MaterialTheme.typography.bodyLarge)
         }
     }
@@ -362,88 +362,55 @@ private fun AddTaskCard(
         else -> "После конца рабочего дня"
     }
     val descriptions = mapOf(
-        "У" to "Управленческие",
-        "Р" to "Рутинные рабочие",
-        "ОК" to "Вся компания",
-        "Л" to "Личные",
-        "ЗП" to "Зарплата / премия",
-        "ГК" to "Гос. контракты",
-        "КК" to "КристаКоманда"
+        "У" to "Управленческие", "Р" to "Рутинные рабочие", "ОК" to "Вся компания",
+        "Л" to "Личные", "ЗП" to "Зарплата / премия", "ГК" to "Гос. контракты", "КК" to "КристаКоманда"
     )
 
-    Card(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Новая задача", style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = onDismiss) { Text("Отмена") }
             }
-
-            Text(
-                "${date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}  •  ${time.format(DateTimeFormatter.ofPattern("HH:mm"))}  •  $timePart",
-                style = MaterialTheme.typography.labelMedium
-            )
-
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+            Text("${date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}  •  ${time.format(DateTimeFormatter.ofPattern("HH:mm"))}  •  $timePart", style = MaterialTheme.typography.labelMedium)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf("У","Р","ОК","Л","ЗП","ГК","КК").forEach { value ->
                     Text(
                         if (value == type) "[$value]" else value,
-                        modifier = Modifier
-                            .clickable { type = value }
-                            .padding(horizontal = 7.dp, vertical = 5.dp),
+                        modifier = Modifier.clickable { type = value }.padding(horizontal = 7.dp, vertical = 5.dp),
                         style = MaterialTheme.typography.labelLarge
                     )
                 }
             }
             Text(descriptions[type].orEmpty(), style = MaterialTheme.typography.labelSmall)
-
             Text("Сложность: ${if (difficulty == 0) "0" else "★".repeat(difficulty)}")
-
             Row(
-                Modifier.fillMaxWidth()
-                    .height(50.dp)
-                    .pointerInput(Unit) {
-                        detectHorizontalDragGestures { change, _ ->
-                            val width = size.width.coerceAtLeast(1)
-                            difficulty = ((change.position.x / width) * 6f).toInt().coerceIn(0, 5)
-                            change.consume()
-                        }
-                    },
+                Modifier.fillMaxWidth().height(50.dp).pointerInput(Unit) {
+                    detectHorizontalDragGestures { change, _ ->
+                        val width = size.width.coerceAtLeast(1)
+                        difficulty = ((change.position.x / width) * 6f).toInt().coerceIn(0, 5)
+                        change.consume()
+                    }
+                },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text(
-                    "0",
-                    Modifier.clickable { difficulty = 0 }.padding(8.dp)
-                )
+                Text("0", Modifier.clickable { difficulty = 0 }.padding(8.dp))
                 (1..5).forEach { level ->
-                    Text(
-                        if (level <= difficulty) "★" else "☆",
-                        Modifier.size(38.dp).clickable { difficulty = level },
-                        style = MaterialTheme.typography.headlineSmall
-                    )
+                    Text(if (level <= difficulty) "★" else "☆", Modifier.size(38.dp).clickable { difficulty = level }, style = MaterialTheme.typography.headlineSmall)
                 }
             }
-
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 label = { Text("Описание задачи") },
-                modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                modifier = Modifier.fillMaxWidth(),
                 minLines = 8,
                 maxLines = 14
             )
-
-            Button(
-                onClick = { onSave(type, difficulty, text) },
-                enabled = text.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Сохранить") }
+            Button(onClick = { onSave(type, difficulty, text) }, enabled = text.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text("Сохранить")
+            }
         }
     }
 }
