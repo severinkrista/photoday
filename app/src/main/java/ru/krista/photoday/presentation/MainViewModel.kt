@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import android.net.Uri
+import ru.krista.photoday.data.AttachmentStore
 import ru.krista.photoday.data.PendingTaskStore
 import ru.krista.photoday.data.SettingsStore
 import ru.krista.photoday.data.TaskTypeDefinition
@@ -22,7 +24,8 @@ class MainViewModel(
     private val repository: YandexTaskRepository,
     private val tokenStore: YandexTokenStore,
     private val settingsStore: SettingsStore,
-    private val pendingTaskStore: PendingTaskStore
+    private val pendingTaskStore: PendingTaskStore,
+    private val attachmentStore: AttachmentStore
 ) : ViewModel() {
     private val sendingIds = mutableSetOf<String>()
     private val _uiState = MutableStateFlow(
@@ -145,27 +148,39 @@ class MainViewModel(
         }
     }
 
-    fun addTask(type: String, difficulty: Int, text: String) {
+    fun addTask(type: String, difficulty: Int, text: String, attachmentUri: Uri?) {
         if (text.isBlank()) return
-        val date = LocalDate.now()
-        val time = LocalTime.now().withSecond(0).withNano(0)
-        val task = TaskRecord(
-            id = UUID.randomUUID().toString(),
-            date = date,
-            time = time,
-            weekday = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")[date.dayOfWeek.value - 1],
-            partOfDay = partOfDay(time),
-            taskType = type,
-            task = text.trim(),
-            difficulty = difficulty
-        )
+        viewModelScope.launch {
+            val localAttachment = attachmentUri?.let { uri ->
+                attachmentStore.copyFromUri(uri).getOrElse {
+                    _uiState.value = _uiState.value.copy(errorMessage = "Не удалось добавить вложение: " + (it.message ?: "неизвестная ошибка"))
+                    return@launch
+                }
+            }
+            val date = LocalDate.now()
+            val time = LocalTime.now().withSecond(0).withNano(0)
+            val target = localAttachment?.let { repository.attachmentTarget(date, it.originalName) }
+            val task = TaskRecord(
+                id = UUID.randomUUID().toString(),
+                date = date,
+                time = time,
+                weekday = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")[date.dayOfWeek.value - 1],
+                partOfDay = partOfDay(time),
+                taskType = type,
+                task = text.trim(),
+                difficulty = difficulty,
+                attachmentFolder = target?.first,
+                attachmentName = target?.second,
+                localAttachmentPath = localAttachment?.path
+            )
 
-        pendingTaskStore.add(task)
-        _uiState.value = _uiState.value.copy(
-            pendingTasks = pendingTaskStore.getTasks(),
-            errorMessage = null
-        )
-        sendPendingTask(task)
+            pendingTaskStore.add(task)
+            _uiState.value = _uiState.value.copy(
+                pendingTasks = pendingTaskStore.getTasks(),
+                errorMessage = null
+            )
+            sendPendingTask(task)
+        }
     }
 
     fun retryPendingTask(task: TaskRecord) {
@@ -174,7 +189,30 @@ class MainViewModel(
 
     fun cancelPendingTask(task: TaskRecord) {
         task.id?.let(pendingTaskStore::remove)
+        attachmentStore.delete(task.localAttachmentPath)
         _uiState.value = _uiState.value.copy(pendingTasks = pendingTaskStore.getTasks())
+    }
+
+    fun openAttachment(task: TaskRecord) {
+        if (task.attachmentFolder.isNullOrBlank() || task.attachmentName.isNullOrBlank()) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(attachmentLoading = true, errorMessage = null)
+            repository.downloadAttachment(task).onSuccess { bytes ->
+                _uiState.value = _uiState.value.copy(
+                    attachmentPreview = ru.krista.photoday.presentation.AttachmentPreview(task.attachmentName, bytes),
+                    attachmentLoading = false
+                )
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(
+                    attachmentLoading = false,
+                    errorMessage = "Не удалось открыть вложение: " + (it.message ?: "неизвестная ошибка")
+                )
+            }
+        }
+    }
+
+    fun closeAttachment() {
+        _uiState.value = _uiState.value.copy(attachmentPreview = null, attachmentLoading = false)
     }
 
     private fun sendPendingTask(task: TaskRecord) {
@@ -183,8 +221,10 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(errorMessage = null)
-                repository.addTask(task).onSuccess {
+                val attachmentBytes = task.localAttachmentPath?.let { attachmentStore.read(it) }
+                repository.addTask(task, attachmentBytes).onSuccess {
                     pendingTaskStore.remove(id)
+                    attachmentStore.delete(task.localAttachmentPath)
                     _uiState.value = _uiState.value.copy(pendingTasks = pendingTaskStore.getTasks())
                     refresh()
                 }.onFailure {
