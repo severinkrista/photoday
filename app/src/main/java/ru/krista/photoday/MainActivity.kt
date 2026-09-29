@@ -181,8 +181,6 @@ private fun MainScreen(
                     }
                 }
             } else {
-                Button(onClick = onAdd, Modifier.fillMaxWidth()) { Text("＋ Новая задача") }
-
                 if (state.pendingTasks.isNotEmpty()) {
                     Text("Ожидают отправки", style = MaterialTheme.typography.titleMedium)
                     state.pendingTasks.forEach { task ->
@@ -206,7 +204,9 @@ private fun MainScreen(
                 ) {
                     items(state.records) { TaskCard(it) }
                 }
-            }
+
+
+                Button(onClick = onAdd, Modifier.fillMaxWidth()) { Text("＋ Новая задача") }            }
         }
     }
 }
@@ -334,11 +334,13 @@ private fun FilePickerDialog(
 
 @Composable
 private fun TaskCard(record: TaskRecord) {
-    Card(Modifier.fillMaxWidth()) {
+    var expanded by rememberSaveable(record.id) { mutableStateOf(false) }
+
+    Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("${record.date ?: ""}  ${record.time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: ""}  •  ${record.partOfDay}", style = MaterialTheme.typography.labelMedium)
             Text("${record.taskType}   ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}", style = MaterialTheme.typography.labelLarge)
-            Text(record.task, style = MaterialTheme.typography.bodyLarge)
+            Text(record.task, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }
