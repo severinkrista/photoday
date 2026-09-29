@@ -7,6 +7,7 @@ data class MainUiState(
     val records: List<TaskRecord> = emptyList(),
     val pendingTasks: List<TaskRecord> = emptyList(),
     val daysToShow: Int = 2,
+    val taskTypes: List<String> = listOf("У", "Р", "ОК", "Л", "ЗП", "ГК", "КК"),
     val isConnected: Boolean = false,
     val errorMessage: String? = null,
     val selectedPath: String = "",
