@@ -12,6 +12,24 @@ data class TaskTypeDefinition(
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("photoday_settings", Context.MODE_PRIVATE)
 
+    companion object {
+        const val DISPLAY_MODE_TASKS = "tasks"
+        const val DISPLAY_MODE_DAYS = "days"
+    }
+
+    fun getDisplayMode(): String =
+        prefs.getString("display_mode", DISPLAY_MODE_TASKS) ?: DISPLAY_MODE_TASKS
+
+    fun saveDisplayMode(mode: String) {
+        prefs.edit().putString("display_mode", mode).apply()
+    }
+
+    fun getTasksToShow(): Int = prefs.getInt("tasks_to_show", 10)
+
+    fun saveTasksToShow(count: Int) {
+        prefs.edit().putInt("tasks_to_show", count).apply()
+    }
+
     private val defaultTaskTypes = listOf(
         TaskTypeDefinition("У", "управленческие задачи"),
         TaskTypeDefinition("Р", "рутина, рядовые рабочие задачи"),
