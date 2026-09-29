@@ -499,11 +499,17 @@ private fun TaskCard(record: TaskRecord) {
 
     Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${record.date ?: ""}", style = MaterialTheme.typography.labelMedium)
-            Text(
-                "${record.taskType}   •   Сложность: ${if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0)}",
-                style = MaterialTheme.typography.labelLarge
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("${record.date ?: ""}  •  ${record.taskType}", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    if ((record.difficulty ?: 0) == 0) "0" else "★".repeat(record.difficulty ?: 0),
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
             Text(record.task, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
@@ -531,7 +537,14 @@ private fun AddTaskCard(
                 Text("Новая задача", style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = onDismiss) { Text("Отмена") }
             }
-            Text(date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")), style = MaterialTheme.typography.labelMedium)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("${date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}  •  $type", style = MaterialTheme.typography.labelMedium)
+                Text(if (difficulty == 0) "0" else "★".repeat(difficulty), style = MaterialTheme.typography.labelMedium)
+            }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 taskTypes.forEach { value ->
                     Text(
@@ -541,7 +554,6 @@ private fun AddTaskCard(
                     )
                 }
             }
-            Text("Сложность: ${if (difficulty == 0) "0" else "★".repeat(difficulty)}")
             Row(
                 Modifier.fillMaxWidth().height(50.dp).pointerInput(Unit) {
                     detectHorizontalDragGestures { change, _ ->
