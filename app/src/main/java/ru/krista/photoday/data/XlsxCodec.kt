@@ -187,15 +187,15 @@ object XlsxCodec {
     }
 
     private fun ensureAttachmentHeaders(xml: String): String {
-        val firstRowMatch = Regex("<row[^>]*r="1"[^>]*>.*?</row>", RegexOption.DOT_MATCHES_ALL).find(xml)
+        val firstRowMatch = Regex("""<row[^>]*r="1"[^>]*>.*?</row>""", RegexOption.DOT_MATCHES_ALL).find(xml)
             ?: error("В XLSX не найдена строка заголовков")
         val firstRow = firstRowMatch.value
-        val hasI = Regex("<c[^>]*r="I1"[^>]*>", RegexOption.DOT_MATCHES_ALL).containsMatchIn(firstRow)
-        val hasJ = Regex("<c[^>]*r="J1"[^>]*>", RegexOption.DOT_MATCHES_ALL).containsMatchIn(firstRow)
+        val hasI = Regex("""<c[^>]*r="I1"[^>]*>""").containsMatchIn(firstRow)
+        val hasJ = Regex("""<c[^>]*r="J1"[^>]*>""").containsMatchIn(firstRow)
         if (hasI && hasJ) return xml
         val headers = buildString {
-            if (!hasI) append("<c r="I1" t="inlineStr"><is><t>Папка вложения</t></is></c>")
-            if (!hasJ) append("<c r="J1" t="inlineStr"><is><t>Файл вложения</t></is></c>")
+            if (!hasI) append("""<c r="I1" t="inlineStr"><is><t>Папка вложения</t></is></c>""")
+            if (!hasJ) append("""<c r="J1" t="inlineStr"><is><t>Файл вложения</t></is></c>""")
         }
         val updatedRow = firstRow.replace("</row>", headers + "</row>")
         return xml.replace(firstRow, updatedRow)
