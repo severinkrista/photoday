@@ -6,22 +6,30 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.krista.photoday.data.PendingTaskStore
+import ru.krista.photoday.data.SettingsStore
 import ru.krista.photoday.data.YandexOAuthClient
 import ru.krista.photoday.data.YandexTaskRepository
 import ru.krista.photoday.data.YandexTokenStore
-import ru.krista.photoday.data.SettingsStore
 import ru.krista.photoday.domain.TaskRecord
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.UUID
 
 class MainViewModel(
     private val oauth: YandexOAuthClient,
     private val repository: YandexTaskRepository,
     private val tokenStore: YandexTokenStore,
-    private val settingsStore: SettingsStore
+    private val settingsStore: SettingsStore,
+    private val pendingTaskStore: PendingTaskStore
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
-        MainUiState(isConnected = tokenStore.getToken() != null, daysToShow = settingsStore.getDaysToShow(), selectedPath = repository.currentPath())
+        MainUiState(
+            isConnected = tokenStore.getToken() != null,
+            daysToShow = settingsStore.getDaysToShow(),
+            selectedPath = repository.currentPath(),
+            pendingTasks = pendingTaskStore.getTasks()
+        )
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
@@ -83,31 +91,67 @@ class MainViewModel(
             val from = today.minusDays((_uiState.value.daysToShow - 1).toLong())
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             repository.getTasks(from, today).onSuccess {
-                _uiState.value = _uiState.value.copy(records = it, isLoading = false, isConnected = true)
+                _uiState.value = _uiState.value.copy(
+                    records = it,
+                    pendingTasks = pendingTaskStore.getTasks(),
+                    isLoading = false,
+                    isConnected = true
+                )
             }.onFailure {
-                _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = it.message)
+                _uiState.value = _uiState.value.copy(
+                    pendingTasks = pendingTaskStore.getTasks(),
+                    isLoading = false,
+                    errorMessage = it.message
+                )
             }
         }
     }
 
     fun addTask(type: String, difficulty: Int, text: String) {
         if (text.isBlank()) return
+        val date = LocalDate.now()
+        val time = LocalTime.now().withSecond(0).withNano(0)
+        val task = TaskRecord(
+            id = UUID.randomUUID().toString(),
+            date = date,
+            time = time,
+            weekday = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")[date.dayOfWeek.value - 1],
+            partOfDay = partOfDay(time),
+            taskType = type,
+            task = text.trim(),
+            difficulty = difficulty
+        )
+
+        pendingTaskStore.add(task)
+        _uiState.value = _uiState.value.copy(
+            pendingTasks = pendingTaskStore.getTasks(),
+            errorMessage = null
+        )
+        sendPendingTask(task)
+    }
+
+    fun retryPendingTask(task: TaskRecord) {
+        sendPendingTask(task)
+    }
+
+    fun cancelPendingTask(task: TaskRecord) {
+        task.id?.let(pendingTaskStore::remove)
+        _uiState.value = _uiState.value.copy(pendingTasks = pendingTaskStore.getTasks())
+    }
+
+    private fun sendPendingTask(task: TaskRecord) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            val date = LocalDate.now()
-            val time = LocalTime.now().withSecond(0).withNano(0)
-            val task = TaskRecord(
-                id = null,
-                date = date,
-                time = time,
-                weekday = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")[date.dayOfWeek.value - 1],
-                partOfDay = partOfDay(time),
-                taskType = type,
-                task = text.trim(),
-                difficulty = difficulty
-            )
-            repository.addTask(task).onSuccess { refresh() }
-                .onFailure { _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = it.message) }
+            _uiState.value = _uiState.value.copy(errorMessage = null)
+            repository.addTask(task).onSuccess {
+                task.id?.let(pendingTaskStore::remove)
+                _uiState.value = _uiState.value.copy(pendingTasks = pendingTaskStore.getTasks())
+                refresh()
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(
+                    pendingTasks = pendingTaskStore.getTasks(),
+                    errorMessage = "Не удалось отправить запись в таблицу: " + it.message
+                )
+            }
         }
     }
 
