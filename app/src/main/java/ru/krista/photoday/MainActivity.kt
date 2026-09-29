@@ -204,7 +204,7 @@ private fun MainScreen(
                     Modifier.fillMaxWidth().weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(state.records, key = { it.id ?: "${it.date}-${it.time}-${it.task}" }) { TaskCard(it) }
+                    items(state.records) { TaskCard(it) }
                 }
             }
         }
