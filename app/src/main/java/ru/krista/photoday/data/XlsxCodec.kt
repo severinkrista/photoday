@@ -63,7 +63,7 @@ object XlsxCodec {
     private fun hasIdHeader(xml: String, shared: List<String>): Boolean {
         val header = Regex("<c[^>]*r=\"A1\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
             .find(xml)?.value ?: return false
-        val cellType = Regex("<c[^>]*t="([^"]+)"[^>]*>", RegexOption.DOT_MATCHES_ALL)
+        val cellType = Regex("<c[^>]*t=\"([^\"]+)\"[^>]*>", RegexOption.DOT_MATCHES_ALL)
             .find(header)?.groupValues?.getOrNull(1)
         val raw = Regex("<t>(.*?)</t>|<v>(.*?)</v>", RegexOption.DOT_MATCHES_ALL)
             .find(header)?.let { it.groupValues[1].ifBlank { it.groupValues[2] } }
