@@ -31,7 +31,7 @@ jobs:
           cd ..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web-extension/popup.js web-extension/settings.js
+          git add web-extension/popup.js web-extension/settings.js web-extension/viewer.js
           git diff --cached --quiet || git commit -m "Build browser extension"
           git push
       - uses: actions/upload-artifact@v4
