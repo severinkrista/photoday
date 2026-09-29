@@ -34,6 +34,48 @@ class YandexDiskClient(
         }
     }
 
+    fun attachmentFolder(date: java.time.LocalDate): String {
+        val parent = pathStore.getPath().substringBeforeLast("/", "")
+        require(parent.isNotBlank()) { "Не удалось определить родительскую папку XLSX" }
+        return parent + "/attached/" + date.year + "/" + date.monthValue.toString().padStart(2, '0')
+    }
+
+    suspend fun uploadAttachment(path: String, bytes: ByteArray, contentType: String?): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val href = operationHref("resources/upload", path, "&overwrite=true")
+            val c = URL(href).openConnection() as HttpURLConnection
+            c.requestMethod = "PUT"
+            c.doOutput = true
+            if (!contentType.isNullOrBlank()) c.setRequestProperty("Content-Type", contentType)
+            c.outputStream.use { it.write(bytes) }
+            if (c.responseCode !in 200..299) error("Яндекс Диск: HTTP " + c.responseCode)
+        }
+    }
+
+    suspend fun ensureFolder(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val token = tokenStore.getToken() ?: error("Яндекс Диск не подключён")
+            val encodedPath = URLEncoder.encode(path, "UTF-8")
+            val url = "https://cloud-api.yandex.net/v1/disk/resources?path=" + encodedPath
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.requestMethod = "PUT"
+            connection.setRequestProperty("Authorization", "OAuth " + token)
+            if (connection.responseCode !in 200..299 && connection.responseCode != 409) {
+                val message = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                error("Яндекс Диск: HTTP " + connection.responseCode + ": " + message)
+            }
+        }
+    }
+
+    suspend fun downloadFile(path: String): Result<ByteArray> = withContext(Dispatchers.IO) {
+        runCatching {
+            val href = operationHref("resources/download", path)
+            val c = URL(href).openConnection() as HttpURLConnection
+            c.requestMethod = "GET"
+            if (c.responseCode !in 200..299) error("Яндекс Диск: HTTP " + c.responseCode)
+            c.inputStream.use { it.readBytes() }
+        }
+    }
     fun currentPath(): String = pathStore.getPath()
 
     fun selectPath(path: String) { pathStore.savePath(path) }
