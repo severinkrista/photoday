@@ -33831,6 +33831,7 @@
     runtimeApi()?.openOptionsPage?.();
   }
   function bind() {
+    if (!$2("refresh") || !$2("add") || !$2("openSettings")) throw new Error("\u0418\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441 popup \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E.");
     $2("refresh").onclick = () => void refresh();
     $2("openSettings").onclick = () => openSettings();
     $2("add").onclick = () => void addCurrentTask();
