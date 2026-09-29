@@ -1,7 +1,7 @@
 {
   "manifest_version":3,
   "name":"Фото дня",
-  "version":"0.2.0",
+  "version":"0.2.1",
   "description":"Фиксация выполненных задач с хранением в photoday.xlsx на Яндекс Диске.",
   "permissions":["storage","unlimitedStorage"],
   "host_permissions":[
