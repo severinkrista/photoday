@@ -29,6 +29,19 @@
   });
 
   // src/storage.ts
+  function toBase64(data) {
+    let binary = "";
+    const bytes = new Uint8Array(data);
+    const chunk = 32768;
+    for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+    return btoa(binary);
+  }
+  function fromBase64(value) {
+    const binary = atob(value);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out.buffer;
+  }
   async function get(key, fallback) {
     if (storage) {
       const r = await storage.get(key);
@@ -55,10 +68,19 @@
     await set("token", t);
   }
   async function getPendingTasks() {
-    return get("pending", []);
+    const stored = await get("pending", []);
+    return stored.map((p) => {
+      if (!p.attachment) return { task: p.task, createdAt: p.createdAt };
+      const data = typeof p.attachment.data === "string" ? fromBase64(p.attachment.data) : new ArrayBuffer(0);
+      return { task: p.task, createdAt: p.createdAt, attachment: { name: p.attachment.name, type: p.attachment.type, data } };
+    });
   }
   async function savePendingTasks(p) {
-    await set("pending", p);
+    const stored = p.map((x) => {
+      if (!x.attachment) return { task: x.task, createdAt: x.createdAt };
+      return { task: x.task, createdAt: x.createdAt, attachment: { name: x.attachment.name, type: x.attachment.type, data: toBase64(x.attachment.data) } };
+    });
+    await set("pending", stored);
   }
   var storage;
   var init_storage = __esm({
@@ -33718,27 +33740,47 @@
 
   // src/xlsx.ts
   var headers = ["ID", "\u0414\u0430\u0442\u0430", "\u0412\u0440\u0435\u043C\u044F", "\u0414\u0435\u043D\u044C \u043D\u0435\u0434\u0435\u043B\u0438", "\u0427\u0430\u0441\u0442\u044C \u0434\u043D\u044F", "\u0412\u0438\u0434 \u0437\u0430\u0434\u0430\u0447\u0438", "\u0417\u0430\u0434\u0430\u0447\u0430", "\u0421\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u044C", "\u041F\u0430\u043F\u043A\u0430 \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F", "\u0424\u0430\u0439\u043B \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F"];
+  function excelSerialToParts(v) {
+    const whole = Math.floor(v);
+    const fraction = Math.max(0, Math.min(0.999999999, v - whole));
+    const base = new Date(Date.UTC(1899, 11, 30) + whole * 864e5);
+    const total = Math.round(fraction * 86400);
+    return { year: base.getUTCFullYear(), month: base.getUTCMonth() + 1, day: base.getUTCDate(), hour: Math.floor(total / 3600) % 24, minute: Math.floor(total / 60) % 60, second: total % 60 };
+  }
   var date = (v) => {
-    if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+    if (typeof v === "number" && Number.isFinite(v)) {
+      const p = excelSerialToParts(v);
+      return [p.year, String(p.month).padStart(2, "0"), String(p.day).padStart(2, "0")].join("-");
+    }
+    if (v instanceof Date && !isNaN(v.getTime())) return [v.getUTCFullYear(), String(v.getUTCMonth() + 1).padStart(2, "0"), String(v.getUTCDate()).padStart(2, "0")].join("-");
     const s = String(v ?? "").trim();
     const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
     if (m) return m[3] + "-" + m[2] + "-" + m[1];
     return s.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
   };
   var time = (v) => {
-    if (typeof v === "number") {
-      const t = Math.round(v * 86400);
-      return [Math.floor(t / 3600) % 24, Math.floor(t / 60) % 60, t % 60].map((x) => String(x).padStart(2, "0")).join(":");
+    if (typeof v === "number" && Number.isFinite(v)) {
+      const p = excelSerialToParts(v);
+      return [p.hour, p.minute, p.second].map((x) => String(x).padStart(2, "0")).join(":");
     }
+    if (v instanceof Date && !isNaN(v.getTime())) return [v.getUTCHours(), v.getUTCMinutes(), v.getUTCSeconds()].map((x) => String(x).padStart(2, "0")).join(":");
     const s = String(v ?? "").trim();
     if (/^\d{1,2}:\d{2}$/.test(s)) return s + ":00";
+    if (/^\d{1,2}:\d{2}:\d{2}$/.test(s)) return s;
     return s || void 0;
   };
   function rows(data) {
-    const wb = readSync(data, { type: "array", cellDates: true, raw: false });
+    const wb = readSync(data, { type: "array", cellDates: false, raw: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
     if (!ws) throw new Error("\u0412 XLSX \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 \u043F\u0435\u0440\u0432\u044B\u0439 \u043B\u0438\u0441\u0442.");
-    return { wb, ws, rows: utils.sheet_to_json(ws, { header: 1, defval: "" }) };
+    return { wb, ws, rows: utils.sheet_to_json(ws, { header: 1, defval: "", raw: true, blankrows: true }) };
+  }
+  function hasValue(v) {
+    return v !== void 0 && v !== null && String(v).trim() !== "";
+  }
+  function lastDataRow(rows2) {
+    for (let i = rows2.length - 1; i >= 1; i--) if ((rows2[i] ?? []).some(hasValue)) return i;
+    return 0;
   }
   function readTasks(data) {
     const { rows: r } = rows(data), h = (r[0] ?? []).map((x) => String(x).trim()), ix = (n, f) => h.indexOf(n) >= 0 ? h.indexOf(n) : f;
@@ -33750,11 +33792,13 @@
     const h = (r[0] ?? []).map((x) => String(x).trim());
     if (h[0] !== "ID") throw new Error("\u0412 XLSX \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 \u043F\u0435\u0440\u0432\u0430\u044F \u043A\u043E\u043B\u043E\u043D\u043A\u0430 ID. \u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043A\u043E\u043B\u043E\u043D\u043A\u0443 \xABID\xBB \u043F\u0435\u0440\u0435\u0434 \u043A\u043E\u043B\u043E\u043D\u043A\u043E\u0439 \xAB\u0414\u0430\u0442\u0430\xBB.");
     while (h.length < 10) h.push(headers[h.length]);
-    r[0] = h;
-    const last = r[r.length - 1] ?? [], id = (Number.parseInt(String(last[0] ?? ""), 10) || 0) + 1;
+    utils.sheet_add_aoa(ws, [h], { origin: { r: 0, c: 0 } });
+    const lastRow = lastDataRow(r);
+    const last = r[lastRow] ?? [];
+    const id = (Number.parseInt(String(last[0] ?? ""), 10) || 0) + 1;
     const d = t.date ?? (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), p = d.split("-");
     const row = [id, p[2] + "." + p[1] + "." + p[0], (t.time ?? "00:00:00").length === 5 ? (t.time ?? "00:00") + ":00" : t.time, t.weekday, t.partOfDay, t.taskType, t.task, t.difficulty ?? 0, t.attachmentFolder ?? "", t.attachmentName ?? ""];
-    utils.sheet_add_aoa(ws, [row], { origin: -1 });
+    utils.sheet_add_aoa(ws, [row], { origin: { r: lastRow + 1, c: 0 } });
     return writeSync(wb, { type: "array", bookType: "xlsx" });
   }
 
@@ -33772,16 +33816,13 @@
     const updated = appendTask(await downloadWorkbook(s), t);
     await uploadWorkbook(s, updated);
   }
-  async function getAttachment(t) {
-    if (!t.attachmentFolder || !t.attachmentName) throw new Error("\u0423 \u0437\u0430\u0434\u0430\u0447\u0438 \u043D\u0435\u0442 \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F.");
-    return downloadFile(t.attachmentFolder + "/" + t.attachmentName);
-  }
 
   // src/popup.ts
   var settings = DEFAULT_SETTINGS;
   var records = [];
   var pending = [];
   var adding = false;
+  var retrying = /* @__PURE__ */ new Set();
   var $2 = (id) => document.getElementById(id);
   function runtimeApi() {
     return globalThis.browser?.runtime ?? globalThis.chrome?.runtime;
@@ -33860,7 +33901,14 @@
       const task = { id: crypto.randomUUID(), date: date2, time: now.toTimeString().slice(0, 8), weekday: ["\u041F\u043D", "\u0412\u0442", "\u0421\u0440", "\u0427\u0442", "\u041F\u0442", "\u0421\u0431", "\u0412\u0441"][now.getDay() === 0 ? 6 : now.getDay() - 1], partOfDay: partOfDay(now), taskType: $2("type").value, task: text, difficulty: selectedDifficulty(), attachmentFolder: file ? (await Promise.resolve().then(() => (init_yandex(), yandex_exports))).attachmentFolder(settings, date2) : void 0, attachmentName: target };
       const item = { task, attachment: file ? { name: file.name, type: file.type, data: await file.arrayBuffer() } : void 0, createdAt: `${Date.now()}-${crypto.randomUUID()}` };
       pending.push(item);
-      await savePendingTasks(pending);
+      try {
+        await savePendingTasks(pending);
+      } catch (e) {
+        pending = pending.filter((x) => x.createdAt !== item.createdAt);
+        showError(new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443 \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u044C: " + (e instanceof Error ? e.message : String(e))));
+        renderPending();
+        return;
+      }
       clearForm();
       renderRecords();
       await retry(item);
@@ -33870,7 +33918,10 @@
     }
   }
   async function retry(item) {
+    if (retrying.has(item.createdAt)) return;
+    retrying.add(item.createdAt);
     try {
+      if (item.attachment && item.attachment.data.byteLength === 0) throw new Error("\u0412\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442. \u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0437\u0430\u0434\u0430\u0447\u0443 \u0437\u0430\u043D\u043E\u0432\u043E.");
       await addTask(settings, item.task, item.attachment);
       pending = pending.filter((x) => x.createdAt !== item.createdAt);
       await savePendingTasks(pending);
@@ -33878,6 +33929,8 @@
     } catch (e) {
       showError(e);
       renderPending();
+    } finally {
+      retrying.delete(item.createdAt);
     }
   }
   async function cancel(at) {
@@ -33941,25 +33994,18 @@
       const c = document.createElement("button");
       c.textContent = "\u041E\u0442\u043C\u0435\u043D\u0438\u0442\u044C";
       c.onclick = () => void cancel(p.createdAt);
-      const r = document.createElement("button");
-      r.textContent = "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0443";
-      r.onclick = () => void retry(p);
-      actions.append(c, r);
+      const retryButton = document.createElement("button");
+      retryButton.textContent = retrying.has(p.createdAt) ? "\u041E\u0442\u043F\u0440\u0430\u0432\u043A\u0430..." : "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0443";
+      retryButton.disabled = retrying.has(p.createdAt);
+      retryButton.onclick = () => void retry(p);
+      actions.append(c, retryButton);
       card.append(title, text, actions);
       root.append(card);
     });
   }
   async function openAttachment(t) {
-    const tab = window.open("about:blank", "_blank");
-    try {
-      const data = await getAttachment(t), url = URL.createObjectURL(new Blob([data]));
-      if (tab && !tab.closed) tab.location.href = url;
-      else window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 6e4);
-    } catch (e) {
-      if (tab && !tab.closed) tab.close();
-      showError(e);
-    }
+    const url = "viewer.html?folder=" + encodeURIComponent(t.attachmentFolder ?? "") + "&name=" + encodeURIComponent(t.attachmentName ?? "");
+    window.open(url, "_blank");
   }
   function showError(e) {
     $2("error").textContent = e instanceof Error ? e.message : String(e);

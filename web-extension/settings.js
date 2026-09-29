@@ -119,6 +119,7 @@
       $("connect").onclick = () => void connect();
       $("testConnection").onclick = () => void test();
       $("addType").onclick = () => {
+        syncTypesFromDom();
         settings.taskTypes.push({ code: "\u041D\u043E\u0432\u044B\u0439", description: "" });
         render();
       };
@@ -126,7 +127,12 @@
       $("status").textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A: " + (e instanceof Error ? e.message : String(e));
     }
   }
+  function syncTypesFromDom() {
+    if (!settings) return;
+    settings.taskTypes = Array.from(document.querySelectorAll(".type-row")).map((r) => ({ code: r.querySelector('[data-role="code"]').value.trim(), description: r.querySelector('[data-role="description"]').value.trim() }));
+  }
   function render() {
+    $("diskPath").setAttribute("value", settings.diskPath);
     $("diskPath").value = settings.diskPath;
     $("tasks").value = String(settings.tasksToShow);
     $("days").value = String(settings.daysToShow);
@@ -144,8 +150,10 @@
       desc.value = t.description;
       desc.dataset.role = "description";
       const del = document.createElement("button");
+      del.type = "button";
       del.textContent = "\u0423\u0434\u0430\u043B\u0438\u0442\u044C";
       del.onclick = () => {
+        syncTypesFromDom();
         settings.taskTypes.splice(i, 1);
         render();
       };
@@ -153,10 +161,23 @@
       root.append(row);
     });
   }
+  function collectSettings() {
+    syncTypesFromDom();
+    const diskPath = $("diskPath").value.trim();
+    const tasksToShow = Math.max(1, Number($("tasks").value) || 10);
+    const daysToShow = Math.max(1, Number($("days").value) || 2);
+    const displayMode = $("modeDays").checked ? "days" : "tasks";
+    const taskTypes = settings.taskTypes.map((t) => ({ code: t.code.trim(), description: t.description.trim() }));
+    if (!diskPath) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A XLSX.");
+    if (!taskTypes.length) throw new Error("\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u0442\u0438\u043F \u0437\u0430\u0434\u0430\u0447\u0438.");
+    if (taskTypes.some((t) => !t.code)) throw new Error("\u0423 \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u0442\u0438\u043F\u0430 \u0437\u0430\u0434\u0430\u0447\u0438 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0443\u043A\u0430\u0437\u0430\u043D \u043A\u043E\u0434.");
+    const codes = taskTypes.map((t) => t.code.toLocaleLowerCase());
+    if (new Set(codes).size !== codes.length) throw new Error("\u041A\u043E\u0434\u044B \u0442\u0438\u043F\u043E\u0432 \u0437\u0430\u0434\u0430\u0447 \u043D\u0435 \u0434\u043E\u043B\u0436\u043D\u044B \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0442\u044C\u0441\u044F.");
+    return { displayMode, tasksToShow, daysToShow, diskPath, taskTypes };
+  }
   async function save() {
     try {
-      settings = { ...settings, diskPath: $("diskPath").value.trim(), tasksToShow: Math.max(1, Number($("tasks").value) || 10), daysToShow: Math.max(1, Number($("days").value) || 2), displayMode: $("modeDays").checked ? "days" : "tasks", taskTypes: Array.from(document.querySelectorAll(".type-row")).map((r) => ({ code: r.querySelector('[data-role="code"]').value.trim(), description: r.querySelector('[data-role="description"]').value.trim() })).filter((x) => x.code) };
-      if (!settings.diskPath) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A XLSX.");
+      settings = collectSettings();
       await saveSettings(settings);
       $("status").textContent = "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B.";
     } catch (e) {
@@ -178,7 +199,8 @@
     $("testConnection").disabled = true;
     $("testResult").textContent = "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430...";
     try {
-      const r = await testConnection(settings);
+      const current = collectSettings();
+      const r = await testConnection(current);
       $("testResult").textContent = r.attachmentFolderExists ? "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442. \u041E\u0441\u043D\u043E\u0432\u043D\u043E\u0439 \u0444\u0430\u0439\u043B \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D. \u041F\u0430\u043F\u043A\u0430 \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u0439 \u043D\u0430\u0439\u0434\u0435\u043D\u0430." : "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442. \u041E\u0441\u043D\u043E\u0432\u043D\u043E\u0439 \u0444\u0430\u0439\u043B \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D. \u041F\u0430\u043F\u043A\u0430 \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435 \u0441\u043E\u0437\u0434\u0430\u043D\u0430.";
     } catch (e) {
       $("testResult").textContent = "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u043D\u0435 \u043F\u0440\u043E\u0439\u0434\u0435\u043D\u0430: " + (e instanceof Error ? e.message : String(e));
