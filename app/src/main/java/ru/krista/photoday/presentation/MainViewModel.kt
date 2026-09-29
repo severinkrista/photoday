@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ru.krista.photoday.data.PendingTaskStore
 import ru.krista.photoday.data.SettingsStore
+import ru.krista.photoday.data.TaskTypeDefinition
 import ru.krista.photoday.data.YandexOAuthClient
 import ru.krista.photoday.data.YandexTaskRepository
 import ru.krista.photoday.data.YandexTokenStore
@@ -29,6 +30,7 @@ class MainViewModel(
             isConnected = tokenStore.getToken() != null,
             daysToShow = settingsStore.getDaysToShow(),
             taskTypes = settingsStore.getTaskTypes(),
+            taskTypeDefinitions = settingsStore.getTaskTypeDefinitions(),
             selectedPath = repository.currentPath(),
             pendingTasks = pendingTaskStore.getTasks()
         )
@@ -46,11 +48,16 @@ class MainViewModel(
         if (_uiState.value.isConnected) refresh()
     }
 
-    fun setTaskTypes(types: List<String>) {
-        val normalized = types.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    fun setTaskTypeDefinitions(types: List<TaskTypeDefinition>) {
+        val normalized = types.map {
+            TaskTypeDefinition(it.code.trim(), it.description.trim())
+        }.filter { it.code.isNotEmpty() }.distinctBy { it.code }
         if (normalized.isEmpty()) return
-        settingsStore.saveTaskTypes(normalized)
-        _uiState.value = _uiState.value.copy(taskTypes = normalized)
+        settingsStore.saveTaskTypeDefinitions(normalized)
+        _uiState.value = _uiState.value.copy(
+            taskTypes = normalized.map { it.code },
+            taskTypeDefinitions = normalized
+        )
     }
 
     fun authorizationUrl(): String = oauth.authorizationUrl()
