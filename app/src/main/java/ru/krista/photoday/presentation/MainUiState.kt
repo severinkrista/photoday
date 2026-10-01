@@ -1,7 +1,6 @@
 package ru.krista.photoday.presentation
 
 import ru.krista.photoday.data.TaskTypeDefinition
-import ru.krista.photoday.analytics.AnalyticsResult
 import ru.krista.photoday.domain.TaskRecord
 
 data class AttachmentPreview(
