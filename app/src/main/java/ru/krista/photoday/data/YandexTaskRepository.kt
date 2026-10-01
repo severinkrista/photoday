@@ -31,6 +31,14 @@ class YandexTaskRepository(private val disk: YandexDiskClient) : TaskRepository 
             .reversed()
     }
 
+    suspend fun getAllTasks(): Result<List<TaskRecord>> = runCatching {
+        val bytes = disk.downloadWorkbook().getOrThrow()
+        workbook = bytes
+        XlsxCodec.read(bytes)
+            .filter { it.date != null }
+            .sortedWith(compareBy<TaskRecord> { it.date }.thenBy { it.time })
+    }
+
     fun currentPath(): String = disk.currentPath()
 
     suspend fun testConnection(): Result<ConnectionTestResult> = runCatching {
