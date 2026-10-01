@@ -53,9 +53,9 @@ import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLa
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.columnModel
-import com.patrykandpatrick.vico.core.cartesian.data.lineModel
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.columnModel
+import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 
 import java.time.LocalDate
 import java.time.LocalTime
@@ -860,9 +860,9 @@ private fun AnalyticsVicoChart(
     val zoomState = rememberVicoZoomState(
         zoomEnabled = visible.size > 6,
         initialZoom = if (visible.size > 12) {
-            com.patrykandpatrick.vico.core.cartesian.Zoom.min(0.65f)
+            com.patrykandpatrick.vico.compose.cartesian.Zoom.min(0.65f)
         } else {
-            com.patrykandpatrick.vico.core.cartesian.Zoom.Content
+            com.patrykandpatrick.vico.compose.cartesian.Zoom.Content
         }
     )
     val scrollState = rememberVicoScrollState(
