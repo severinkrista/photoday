@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
 
@@ -8,6 +8,58 @@ set "TOOLS_DIR=%~dp0.tools"
 set "GRADLE_DIR=%TOOLS_DIR%\gradle-%GRADLE_VERSION%"
 set "GRADLE_ZIP=%TOOLS_DIR%\gradle-%GRADLE_VERSION%-bin.zip"
 set "GRADLE_URL=https://services.gradle.org/distributions/gradle-%GRADLE_VERSION%-bin.zip"
+
+rem Validate the existing JAVA_HOME first. Ignore a stale/broken value.
+set "DETECTED_JAVA_HOME="
+if defined JAVA_HOME if exist "%JAVA_HOME%\bin\java.exe" set "DETECTED_JAVA_HOME=%JAVA_HOME%"
+
+rem If JAVA_HOME is invalid, try java.exe from PATH.
+if not defined DETECTED_JAVA_HOME (
+    for /f "delims=" %%J in ('where java 2^>nul') do if not defined DETECTED_JAVA_HOME (
+        for %%D in ("%%J") do set "DETECTED_JAVA_HOME=%%~dpD.."
+    )
+)
+
+rem Android Studio normally includes its own JDK.
+if not defined DETECTED_JAVA_HOME if exist "%ProgramFiles%\Android\Android Studio\jbr\bin\java.exe" set "DETECTED_JAVA_HOME=%ProgramFiles%\Android\Android Studio\jbr"
+if not defined DETECTED_JAVA_HOME if exist "%ProgramFiles%\Android\Android Studio\jre\bin\java.exe" set "DETECTED_JAVA_HOME=%ProgramFiles%\Android\Android Studio\jre"
+
+rem Last resort: download a portable JDK 17 into .tools.
+if not defined DETECTED_JAVA_HOME (
+    set "JDK_ROOT=%TOOLS_DIR%\jdk17"
+    if not exist "!JDK_ROOT!" mkdir "!JDK_ROOT!"
+    if not exist "!JDK_ROOT!\bin\java.exe" (
+        echo Java 17 not found. Downloading a portable JDK 17...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse' -OutFile '%TOOLS_DIR%\jdk17.zip'"
+        if errorlevel 1 (
+            echo Failed to download JDK 17.
+            exit /b 1
+        )
+        echo Extracting JDK 17...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '%TOOLS_DIR%\jdk17.zip' -DestinationPath '%TOOLS_DIR%\jdk17' -Force"
+        if errorlevel 1 (
+            echo Failed to extract JDK 17.
+            exit /b 1
+        )
+    )
+    for /d %%D in ("!JDK_ROOT!\jdk-*") do if not defined DETECTED_JAVA_HOME if exist "%%D\bin\java.exe" set "DETECTED_JAVA_HOME=%%D"
+    if not defined DETECTED_JAVA_HOME if exist "!JDK_ROOT!\bin\java.exe" set "DETECTED_JAVA_HOME=!JDK_ROOT!"
+)
+
+if not defined DETECTED_JAVA_HOME (
+    echo Java 17 or newer was not found and could not be installed automatically.
+    exit /b 1
+)
+
+set "JAVA_HOME=!DETECTED_JAVA_HOME!"
+set "PATH=!JAVA_HOME!\bin;%PATH%"
+
+echo Using Java:
+"!JAVA_HOME!\bin\java.exe" -version
+if errorlevel 1 (
+    echo Java installation is not usable.
+    exit /b 1
+)
 
 if not exist "%GRADLE_DIR%\bin\gradle.bat" (
     echo Gradle %GRADLE_VERSION% not found. Downloading...
@@ -26,7 +78,7 @@ if not exist "%GRADLE_DIR%\bin\gradle.bat" (
     )
 )
 
-echo Building Фото дня...
+echo Building Foto dnia...
 call "%GRADLE_DIR%\bin\gradle.bat" assembleDebug
 if errorlevel 1 (
     echo Build failed.
