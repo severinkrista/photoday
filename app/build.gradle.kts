@@ -11,8 +11,8 @@ android {
         applicationId = "ru.krista.photoday"
         minSdk = 26
         targetSdk = 37
-        versionCode = 27
-        versionName = "0.4.6"
+        versionCode = 28
+        versionName = "0.4.7"
     }
 
     buildFeatures { compose = true }
