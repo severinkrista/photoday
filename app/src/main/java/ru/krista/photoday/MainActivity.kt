@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -34,8 +35,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.krista.photoday.data.TaskTypeDefinition
+import ru.krista.photoday.analytics.AnalyticsChart
+import ru.krista.photoday.analytics.AnalyticsEngine
+import ru.krista.photoday.analytics.AnalyticsGroupBy
+import ru.krista.photoday.analytics.AnalyticsMetric
+import ru.krista.photoday.analytics.AnalyticsQuery
 import ru.krista.photoday.domain.TaskRecord
 import ru.krista.photoday.presentation.MainUiState
 import ru.krista.photoday.presentation.MainViewModel
@@ -82,6 +89,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
     var showCode by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showTaskTypes by remember { mutableStateOf(false) }
+    var showAnalytics by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
 
     val goBack = {
@@ -90,10 +98,11 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             showAdd -> showAdd = false
             showTaskTypes -> showTaskTypes = false
             showSettings -> showSettings = false
+            showAnalytics -> showAnalytics = false
             state.filePickerOpen -> vm.closeFilePicker()
         }
     }
-    BackHandler(enabled = state.attachmentPreview != null || showTaskTypes || showSettings || showAdd || showCode || state.filePickerOpen) {
+    BackHandler(enabled = state.attachmentPreview != null || showTaskTypes || showSettings || showAnalytics || showAdd || showCode || state.filePickerOpen) {
         if (state.attachmentPreview != null) vm.closeAttachment() else goBack()
     }
 
@@ -103,6 +112,14 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                 definitions = state.taskTypeDefinitions,
                 onBack = { showTaskTypes = false },
                 onSave = vm::setTaskTypeDefinitions
+            )
+            showAnalytics -> AnalyticsScreen(
+                records = state.analyticsRecords,
+                loading = state.analyticsLoading,
+                error = state.analyticsError,
+                taskTypes = state.taskTypes,
+                onBack = { showAnalytics = false },
+                onRefresh = vm::loadAnalytics
             )
             showSettings -> SettingsScreen(
                 state = state,
@@ -118,6 +135,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             MainScreen(
                 state = state,
                 onSettings = { showSettings = true },
+                onAnalytics = { showAnalytics = true; vm.loadAnalytics() },
                 onRefresh = vm::refresh,
                 onAdd = { showAdd = true },
                 onRetryPending = vm::retryPendingTask,
@@ -209,6 +227,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
 private fun MainScreen(
     state: MainUiState,
     onSettings: () -> Unit,
+    onAnalytics: () -> Unit,
     onRefresh: () -> Unit,
     onAdd: () -> Unit,
     onRetryPending: (TaskRecord) -> Unit,
@@ -238,6 +257,7 @@ private fun MainScreen(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onAnalytics) { Text("Аналитика") }
                     TextButton(onClick = onSettings) { Text("Настройки") }
                 }
             }
@@ -627,6 +647,259 @@ private fun TaskCard(record: TaskRecord, onOpenAttachment: (TaskRecord) -> Unit 
                 }
             }
             Text(record.task, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnalyticsScreen(
+    records: List<TaskRecord>,
+    loading: Boolean,
+    error: String?,
+    taskTypes: List<String>,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    val today = LocalDate.now()
+    var fromText by remember { mutableStateOf(today.minusDays(19).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))) }
+    var toText by remember { mutableStateOf(today.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))) }
+    var groupBy by remember { mutableStateOf(AnalyticsGroupBy.DATE) }
+    var metric by remember { mutableStateOf(AnalyticsMetric.COUNT) }
+    var chart by remember { mutableStateOf(AnalyticsChart.BAR) }
+    var selectedTypes by remember { mutableStateOf(emptySet<String>()) }
+    var minDifficulty by remember { mutableStateOf<Int?>(null) }
+    var limitText by remember { mutableStateOf("20") }
+
+    val formatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy") }
+    val from = fromText.trim().let { runCatching { LocalDate.parse(it, formatter) }.getOrNull() }
+    val to = toText.trim().let { runCatching { LocalDate.parse(it, formatter) }.getOrNull() }
+    val query = if (from != null && to != null && !from.isAfter(to)) {
+        AnalyticsQuery(from, to, groupBy, metric, selectedTypes, minDifficulty, chart, limitText.toIntOrNull()?.coerceIn(1, 100) ?: 20)
+    } else null
+    val result = query?.let { AnalyticsEngine.calculate(records, it) }
+
+    Scaffold(modifier = Modifier.edgeBackGesture(onBack)) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) { Text("‹ Назад") }
+                Text("Аналитика", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onRefresh, enabled = !loading) { Text("Обновить") }
+            }
+            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            error?.let {
+                Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
+                }
+            }
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Период", style = MaterialTheme.typography.titleMedium)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(value = fromText, onValueChange = { fromText = it.take(10) }, label = { Text("От") }, singleLine = true, modifier = Modifier.weight(1f))
+                                OutlinedTextField(value = toText, onValueChange = { toText = it.take(10) }, label = { Text("До") }, singleLine = true, modifier = Modifier.weight(1f))
+                            }
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FilterChip(false, { fromText = today.minusDays(6).format(formatter); toText = today.format(formatter) }, label = { Text("7 дней") })
+                                FilterChip(false, { fromText = today.minusDays(19).format(formatter); toText = today.format(formatter) }, label = { Text("20 дней") })
+                                FilterChip(false, { fromText = today.withDayOfMonth(1).format(formatter); toText = today.format(formatter) }, label = { Text("Месяц") })
+                                FilterChip(false, {
+                                    val month = ((today.monthValue - 1) / 3) * 3 + 1
+                                    val start = LocalDate.of(today.year, month, 1)
+                                    fromText = start.format(formatter); toText = start.plusMonths(3).minusDays(1).format(formatter)
+                                }, label = { Text("Квартал") })
+                            }
+                        }
+                    }
+                }
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Что считаем", style = MaterialTheme.typography.titleMedium)
+                            Text("Группировка", style = MaterialTheme.typography.labelLarge)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                AnalyticsGroupBy.values().forEach { option ->
+                                    FilterChip(groupBy == option, { groupBy = option }, label = { Text(option.title) })
+                                }
+                            }
+                            Text("Показатель", style = MaterialTheme.typography.labelLarge)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                AnalyticsMetric.values().forEach { option ->
+                                    FilterChip(metric == option, { metric = option }, label = { Text(option.title) })
+                                }
+                            }
+                            Text("График", style = MaterialTheme.typography.labelLarge)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                AnalyticsChart.values().forEach { option ->
+                                    FilterChip(chart == option, { chart = option }, label = { Text(option.title) })
+                                }
+                            }
+                            OutlinedTextField(
+                                value = limitText,
+                                onValueChange = { limitText = it.filter(Char::isDigit).take(3) },
+                                label = { Text("Максимум строк для рейтинга") },
+                                supportingText = { Text("Применяется к группировке «Задача»") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Фильтр по типу задачи", style = MaterialTheme.typography.titleMedium)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FilterChip(selectedTypes.isEmpty(), { selectedTypes = emptySet() }, label = { Text("Все") })
+                                taskTypes.forEach { type ->
+                                    FilterChip(selectedTypes.contains(type), {
+                                        selectedTypes = if (selectedTypes.contains(type)) selectedTypes - type else selectedTypes + type
+                                    }, label = { Text(type) })
+                                }
+                            }
+                            Text("Минимальная сложность", style = MaterialTheme.typography.labelLarge)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FilterChip(minDifficulty == null, { minDifficulty = null }, label = { Text("Любая") })
+                                (1..5).forEach { level ->
+                                    FilterChip(minDifficulty == level, { minDifficulty = level }, label = { Text("≥ $level") })
+                                }
+                            }
+                        }
+                    }
+                }
+                item {
+                    if (query == null) {
+                        Text("Проверьте даты: используйте формат ДД.ММ.ГГГГ.")
+                    } else if (result != null) {
+                        AnalyticsSummary(result)
+                    }
+                }
+                item {
+                    if (query != null && result != null && result.buckets.isNotEmpty()) {
+                        AnalyticsVisualization(result, query)
+                    } else if (query != null) {
+                        Card(Modifier.fillMaxWidth()) { Text("За выбранный период данных нет.", Modifier.padding(16.dp)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnalyticsSummary(result: ru.krista.photoday.analytics.AnalyticsResult) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Сводка", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Задач: ${result.totalTasks}")
+                Text("Сложность: ${result.totalDifficulty}")
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Средняя: ${"%.2f".format(java.util.Locale.getDefault(), result.averageDifficulty)}")
+                Text("Максимум: ${result.maxDifficulty}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnalyticsVisualization(
+    result: ru.krista.photoday.analytics.AnalyticsResult,
+    query: AnalyticsQuery
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Результат", style = MaterialTheme.typography.titleMedium)
+            when (query.chart) {
+                AnalyticsChart.BAR -> AnalyticsBarChart(result.buckets)
+                AnalyticsChart.LINE -> AnalyticsLineChart(result.buckets)
+                AnalyticsChart.TABLE -> AnalyticsTable(result.buckets, query.groupBy)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnalyticsBarChart(buckets: List<ru.krista.photoday.analytics.AnalyticsBucket>) {
+    val max = buckets.maxOfOrNull { it.value } ?: 1.0
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        buckets.take(30).forEach { bucket ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(bucket.label, Modifier.width(78.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
+                Box(Modifier.weight(1f).height(22.dp).padding(horizontal = 4.dp)) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth((bucket.value / max).toFloat().coerceIn(0f, 1f)))
+                }
+                Text(
+                    if (bucket.value % 1.0 == 0.0) "${bucket.value.toInt()}" else "${"%.2f".format(java.util.Locale.getDefault(), bucket.value)}",
+                    Modifier.width(54.dp), style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+        if (buckets.size > 30) Text("Показаны первые 30 групп.", style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun AnalyticsLineChart(buckets: List<ru.krista.photoday.analytics.AnalyticsBucket>) {
+    val points = buckets.take(60)
+    val max = points.maxOfOrNull { it.value }?.coerceAtLeast(1.0) ?: 1.0
+    val min = points.minOfOrNull { it.value } ?: 0.0
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(180.dp)) {
+            if (points.size >= 2) {
+                val step = size.width / (points.size - 1)
+                fun y(value: Double): Float = (size.height - ((value - min) / (max - min).coerceAtLeast(1e-9) * size.height)).toFloat()
+                for (i in 0 until points.lastIndex) {
+                    drawLine(
+                        start = androidx.compose.ui.geometry.Offset(i * step, y(points[i].value)),
+                        end = androidx.compose.ui.geometry.Offset((i + 1) * step, y(points[i + 1].value)),
+                        strokeWidth = 4f
+                    )
+                }
+                points.forEachIndexed { i, bucket ->
+                    drawCircle(radius = 5f, center = androidx.compose.ui.geometry.Offset(i * step, y(bucket.value)))
+                }
+            }
+        }
+        if (points.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(points.first().label, style = MaterialTheme.typography.labelSmall)
+                if (points.size > 1) Text(points.last().label, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnalyticsTable(
+    buckets: List<ru.krista.photoday.analytics.AnalyticsBucket>,
+    groupBy: AnalyticsGroupBy
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            Text(if (groupBy == AnalyticsGroupBy.TASK) "Задача" else "Группа", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+            Text("Значение", Modifier.width(80.dp), style = MaterialTheme.typography.labelLarge)
+            Text("Задач", Modifier.width(55.dp), style = MaterialTheme.typography.labelLarge)
+        }
+        buckets.take(100).forEach { bucket ->
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Text(bucket.label, Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    if (bucket.value % 1.0 == 0.0) "${bucket.value.toInt()}" else "${"%.2f".format(java.util.Locale.getDefault(), bucket.value)}",
+                    Modifier.width(80.dp), style = MaterialTheme.typography.bodySmall
+                )
+                Text(bucket.count.toString(), Modifier.width(55.dp), style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
