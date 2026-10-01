@@ -429,6 +429,13 @@ private fun SettingsScreen(
                     }
                 }
             }
+
+            Text(
+                "Версия приложения " + BuildConfig.VERSION_NAME,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+            )
         }
     }
 }
