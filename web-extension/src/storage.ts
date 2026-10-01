@@ -7,7 +7,7 @@ async function get<T>(key:string,fallback:T):Promise<T>{if(storage){const r=awai
 async function set<T>(key:string,value:T){if(storage){await storage.set({[key]:value});return;}localStorage.setItem(key,JSON.stringify(value));}
 export async function getSettings(){
  const s=await get<Partial<AppSettings>>("settings",{});
- const mode=s.displayMode==="days"?"days":"tasks";
+ const mode:AppSettings["displayMode"]=s.displayMode==="days"?"days":"tasks";
  const tasks=Number(s.tasksToShow); const days=Number(s.daysToShow);
  return {
   displayMode:mode,
