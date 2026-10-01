@@ -150,6 +150,27 @@ class MainViewModel(
         refresh()
     }
 
+    fun loadAnalytics() {
+        if (_uiState.value.analyticsLoading) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(analyticsLoading = true, analyticsError = null)
+            repository.getAllTasks()
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        analyticsRecords = it,
+                        analyticsLoading = false,
+                        analyticsError = null
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        analyticsLoading = false,
+                        analyticsError = it.message ?: "Не удалось загрузить данные для аналитики"
+                    )
+                }
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch {
             val today = LocalDate.now()
