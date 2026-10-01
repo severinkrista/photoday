@@ -204,17 +204,12 @@ class MainViewModel(
                 localAttachmentPath = localAttachment?.path
             )
 
-            pendingTaskStore.add(task)
-            _uiState.value = _uiState.value.copy(
-                pendingTasks = pendingTaskStore.getTasks(),
-                errorMessage = null
-            )
-            sendPendingTask(task)
+            sendTask(task, keepInPendingOnFailure = true)
         }
     }
 
     fun retryPendingTask(task: TaskRecord) {
-        sendPendingTask(task)
+        sendTask(task, keepInPendingOnFailure = false)
     }
 
     fun cancelPendingTask(task: TaskRecord) {
@@ -245,7 +240,7 @@ class MainViewModel(
         _uiState.value = _uiState.value.copy(attachmentPreview = null, attachmentLoading = false)
     }
 
-    private fun sendPendingTask(task: TaskRecord) {
+    private fun sendTask(task: TaskRecord, keepInPendingOnFailure: Boolean) {
         val id = task.id ?: return
         if (!sendingIds.add(id)) return
         viewModelScope.launch {
@@ -254,18 +249,28 @@ class MainViewModel(
                 val attachmentBytes = runCatching {
                     task.localAttachmentPath?.let { attachmentStore.read(it) }
                 }.getOrElse {
+                    if (keepInPendingOnFailure) {
+                        pendingTaskStore.add(task)
+                    }
                     _uiState.value = _uiState.value.copy(
                         pendingTasks = pendingTaskStore.getTasks(),
                         errorMessage = "Не найден локальный файл вложения: " + (it.message ?: "неизвестная ошибка")
                     )
                     return@launch
                 }
+
                 repository.addTask(task, attachmentBytes).onSuccess {
                     pendingTaskStore.remove(id)
                     attachmentStore.delete(task.localAttachmentPath)
-                    _uiState.value = _uiState.value.copy(pendingTasks = pendingTaskStore.getTasks())
+                    _uiState.value = _uiState.value.copy(
+                        pendingTasks = pendingTaskStore.getTasks(),
+                        errorMessage = null
+                    )
                     refresh()
                 }.onFailure {
+                    if (keepInPendingOnFailure) {
+                        pendingTaskStore.add(task)
+                    }
                     _uiState.value = _uiState.value.copy(
                         pendingTasks = pendingTaskStore.getTasks(),
                         errorMessage = "Не удалось отправить запись в таблицу: " + (it.message ?: "неизвестная ошибка")
