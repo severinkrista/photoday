@@ -851,6 +851,7 @@ private fun AnalyticsBarChart(buckets: List<ru.krista.photoday.analytics.Analyti
 @Composable
 private fun AnalyticsLineChart(buckets: List<ru.krista.photoday.analytics.AnalyticsBucket>) {
     val points = buckets.take(60)
+    val lineColor = MaterialTheme.colorScheme.primary
     val max = points.maxOfOrNull { it.value }?.coerceAtLeast(1.0) ?: 1.0
     val min = points.minOfOrNull { it.value } ?: 0.0
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -860,7 +861,7 @@ private fun AnalyticsLineChart(buckets: List<ru.krista.photoday.analytics.Analyt
                 fun y(value: Double): Float = (size.height - ((value - min) / (max - min).coerceAtLeast(1e-9) * size.height)).toFloat()
                 for (i in 0 until points.lastIndex) {
                     drawLine(
-                        color = MaterialTheme.colorScheme.primary,
+                        color = lineColor,
                         start = androidx.compose.ui.geometry.Offset(i * step, y(points[i].value)),
                         end = androidx.compose.ui.geometry.Offset((i + 1) * step, y(points[i + 1].value)),
                         strokeWidth = 4f
@@ -868,7 +869,7 @@ private fun AnalyticsLineChart(buckets: List<ru.krista.photoday.analytics.Analyt
                 }
                 points.forEachIndexed { i, bucket ->
                     drawCircle(
-                        color = MaterialTheme.colorScheme.primary,
+                        color = lineColor,
                         radius = 5f,
                         center = androidx.compose.ui.geometry.Offset(i * step, y(bucket.value))
                     )
