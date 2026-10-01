@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [yadisk, arena/01a0f774-photoday]
+    branches: [yadisk]
   workflow_dispatch:
 
 jobs:

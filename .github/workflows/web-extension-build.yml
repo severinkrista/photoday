@@ -1,7 +1,7 @@
 name: Browser extension build
 on:
   push:
-    branches: [yadisk, arena/01a0f774-photoday]
+    branches: [yadisk]
     paths:
       - "web-extension/src/**"
       - "web-extension/*.html"
