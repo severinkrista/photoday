@@ -1,0 +1,31 @@
+name: Android build
+
+on:
+  push:
+    branches: [yadisk]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.6.0"
+      - run: gradle assembleDebug
+      - name: Rename APK with version
+        shell: bash
+        run: |
+          VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2)
+          mkdir -p build-output
+          cp app/build/outputs/apk/debug/app-debug.apk "build-output/photoday-${VERSION}.apk"
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: photoday-apk
+          path: build-output/photoday-*.apk

@@ -1,2 +1,11 @@
-/build
-PhotoDay.spec
+.gradle/
+build/
+**/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+.tools/
+build-output/
+node_modules/
+web-extension/dist/

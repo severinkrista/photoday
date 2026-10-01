@@ -1,0 +1,4 @@
+import type {AppSettings,TaskRecord} from "./model.js";import {appendTask,readTasks} from "./xlsx.js";import {attachmentFolder,createAttachmentFolders,downloadFile,downloadWorkbook,uploadAttachment,uploadWorkbook} from "./yandex.js";
+export async function getTasks(s:AppSettings){return readTasks(await downloadWorkbook(s));}
+export async function addTask(s:AppSettings,t:TaskRecord,a?:{name:string;type:string;data:ArrayBuffer}){if(a){const f=attachmentFolder(s,t.date!);await createAttachmentFolders(f);await uploadAttachment(f+"/"+t.attachmentName,a.data,a.type);}const updated=appendTask(await downloadWorkbook(s),t);await uploadWorkbook(s,updated);}
+export async function getAttachment(t:TaskRecord){if(!t.attachmentFolder||!t.attachmentName)throw new Error("У задачи нет вложения.");return downloadFile(t.attachmentFolder+"/"+t.attachmentName);}

@@ -1,0 +1,243 @@
+package ru.krista.photoday.data
+
+import android.util.Xml
+import org.xmlpull.v1.XmlPullParser
+import ru.krista.photoday.domain.TaskRecord
+import java.io.ByteArrayOutputStream
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+
+object XlsxCodec {
+    private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+    private val displayDateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+    private val displayTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+    fun read(bytes: ByteArray): List<TaskRecord> {
+        val entries = unzip(bytes)
+        val strings = readSharedStrings(entries["xl/sharedStrings.xml"])
+        val sheet = entries.keys.firstOrNull { it.startsWith("xl/worksheets/") && it.endsWith(".xml") }
+            ?: error("В XLSX не найден лист")
+        return readSheet(entries.getValue(sheet), strings)
+    }
+
+    fun appendTask(bytes: ByteArray, task: TaskRecord): ByteArray {
+        val entries = unzip(bytes).toMutableMap()
+        val sheet = entries.keys.firstOrNull { it.startsWith("xl/worksheets/") && it.endsWith(".xml") }
+            ?: error("В XLSX не найден лист")
+        val xml = entries.getValue(sheet).toString(Charsets.UTF_8)
+        val strings = readSharedStrings(entries["xl/sharedStrings.xml"])
+        if (!hasIdHeader(xml, strings)) {
+            error("В XLSX отсутствует первая колонка ID. Добавьте колонку «ID» перед колонкой «Дата».")
+        }
+
+        val nextRow = Regex("<row[^>]*r=\"(\\d+)\"")
+            .findAll(xml).map { it.groupValues[1].toInt() }.maxOrNull()?.plus(1) ?: 2
+        val lastId = Regex("<row[^>]*r=\"(\\d+)\"[^>]*>.*?</row>", RegexOption.DOT_MATCHES_ALL)
+            .findAll(xml)
+            .lastOrNull()
+            ?.let { rowMatch ->
+                val rowNumber = rowMatch.groupValues[1]
+                Regex("<c[^>]*r=\"A$rowNumber\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+                    .find(rowMatch.value)
+                    ?.let { cell ->
+                        Regex("<v>(.*?)</v>|<t>(.*?)</t>", RegexOption.DOT_MATCHES_ALL)
+                            .find(cell.value)
+                            ?.let { value -> value.groupValues[1].ifBlank { value.groupValues[2] } }
+                    }
+            }
+            ?.toIntOrNull() ?: 0
+        val nextId = lastId + 1
+
+        val withAttachmentHeaders = ensureAttachmentHeaders(xml)
+        val row = buildRow(nextRow, nextId, task)
+        entries[sheet] = withAttachmentHeaders.replace("</sheetData>", row + "</sheetData>").toByteArray(Charsets.UTF_8)
+        return zip(entries)
+    }
+
+    private fun hasIdHeader(xml: String, shared: List<String>): Boolean {
+        val header = Regex("<c[^>]*r=\"A1\"[^>]*>.*?</c>", RegexOption.DOT_MATCHES_ALL)
+            .find(xml)?.value ?: return false
+        val cellType = Regex("<c[^>]*t=\"([^\"]+)\"[^>]*>", RegexOption.DOT_MATCHES_ALL)
+            .find(header)?.groupValues?.getOrNull(1)
+        val raw = Regex("<t>(.*?)</t>|<v>(.*?)</v>", RegexOption.DOT_MATCHES_ALL)
+            .find(header)?.let { it.groupValues[1].ifBlank { it.groupValues[2] } }
+            .orEmpty()
+        val value = if (cellType == "s") {
+            shared.getOrNull(raw.toIntOrNull() ?: -1).orEmpty()
+        } else {
+            raw
+        }
+        return value.trim().equals("ID", ignoreCase = true)
+    }
+
+    private fun readSheet(bytes: ByteArray, shared: List<String>): List<TaskRecord> {
+        val parser = Xml.newPullParser()
+        parser.setInput(bytes.inputStream(), "UTF-8")
+        val result = mutableListOf<TaskRecord>()
+        var row: MutableMap<String, String>? = null
+        var ref = ""
+        var type: String? = null
+        var value = ""
+        var inValue = false
+        var header: Map<String, String>? = null
+
+        while (parser.next() != XmlPullParser.END_DOCUMENT) {
+            when (parser.eventType) {
+                XmlPullParser.START_TAG -> when (parser.name) {
+                    "row" -> row = mutableMapOf()
+                    "c" -> {
+                        ref = parser.getAttributeValue(null, "r").orEmpty()
+                        type = parser.getAttributeValue(null, "t")
+                        value = ""
+                    }
+                    "v", "t" -> if (ref.isNotEmpty()) inValue = true
+                }
+                XmlPullParser.TEXT -> if (inValue) value += parser.text
+                XmlPullParser.END_TAG -> when (parser.name) {
+                    "v", "t" -> inValue = false
+                    "c" -> row?.set(column(ref), decode(value, type, shared))
+                    "row" -> {
+                        val r = row
+                        if (r != null) {
+                            if (header == null) {
+                                header = r.mapNotNull { (col, name) ->
+                                    name.trim().takeIf { it.isNotEmpty() }?.let { it to col }
+                                }.toMap()
+                            } else {
+                                val dateCol = header?.get("Дата") ?: "B"
+                                val timeCol = header?.get("Время") ?: "C"
+                                val weekdayCol = header?.get("День недели") ?: "D"
+                                val partCol = header?.get("Часть дня") ?: "E"
+                                val typeCol = header?.get("Вид задачи") ?: "F"
+                                val taskCol = header?.get("Задача") ?: "G"
+                                val difficultyCol = header?.get("Сложность") ?: "H"
+                                val attachmentFolderCol = header?.get("Папка вложения") ?: "I"
+                                val attachmentNameCol = header?.get("Файл вложения") ?: "J"
+                                val dateValue = r[dateCol].orEmpty()
+                                val taskValue = r[taskCol].orEmpty()
+
+                                if (dateValue.isNotBlank() && taskValue.isNotBlank()) {
+                                    result += TaskRecord(
+                                        id = header?.get("ID")?.let { r[it] }?.takeIf { it.isNotBlank() },
+                                        date = parseDateOrExcelSerial(dateValue),
+                                        time = parseTimeOrExcelSerial(r[timeCol].orEmpty()),
+                                        weekday = r[weekdayCol].orEmpty(),
+                                        partOfDay = r[partCol].orEmpty(),
+                                        taskType = r[typeCol].orEmpty(),
+                                        task = taskValue,
+                                        difficulty = r[difficultyCol]?.toIntOrNull(),
+                                        attachmentFolder = r[attachmentFolderCol]?.takeIf { it.isNotBlank() },
+                                        attachmentName = r[attachmentNameCol]?.takeIf { it.isNotBlank() }
+                                    )
+                                }
+                            }
+                        }
+                        row = null
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    private fun decode(value: String, type: String?, shared: List<String>): String =
+        if (type == "s") shared.getOrNull(value.toIntOrNull() ?: -1).orEmpty() else value
+
+    private fun readSharedStrings(bytes: ByteArray?): List<String> {
+        if (bytes == null) return emptyList()
+        val parser = Xml.newPullParser()
+        parser.setInput(bytes.inputStream(), "UTF-8")
+        val result = mutableListOf<String>()
+        var active = false
+        var text = StringBuilder()
+        while (parser.next() != XmlPullParser.END_DOCUMENT) {
+            when (parser.eventType) {
+                XmlPullParser.START_TAG -> if (parser.name == "si") { active = true; text = StringBuilder() }
+                XmlPullParser.TEXT -> if (active) text.append(parser.text)
+                XmlPullParser.END_TAG -> if (parser.name == "si") { result += text.toString(); active = false }
+            }
+        }
+        return result
+    }
+
+    private fun buildRow(row: Int, id: Int, task: TaskRecord): String {
+        fun text(col: String, value: String) =
+            "<c r=\"$col$row\" t=\"inlineStr\"><is><t>${escape(value)}</t></is></c>"
+        fun number(col: String, value: String) = "<c r=\"$col$row\"><v>$value</v></c>"
+        return buildString {
+            append("<row r=\"$row\">")
+            append(number("A", id.toString()))
+            append(text("B", task.date?.format(displayDateFormatter).orEmpty()))
+            append(text("C", task.time?.format(displayTimeFormatter).orEmpty()))
+            append(text("D", task.weekday))
+            append(text("E", task.partOfDay))
+            append(text("F", task.taskType))
+            append(text("G", task.task))
+            append(number("H", (task.difficulty ?: 0).toString()))
+            task.attachmentFolder?.let { append(text("I", it)) }
+            task.attachmentName?.let { append(text("J", it)) }
+            append("</row>")
+        }
+    }
+
+    private fun ensureAttachmentHeaders(xml: String): String {
+        val firstRowMatch = Regex("""<row[^>]*r="1"[^>]*>.*?</row>""", RegexOption.DOT_MATCHES_ALL).find(xml)
+            ?: error("В XLSX не найдена строка заголовков")
+        val firstRow = firstRowMatch.value
+        val hasI = Regex("""<c[^>]*r="I1"[^>]*>""").containsMatchIn(firstRow)
+        val hasJ = Regex("""<c[^>]*r="J1"[^>]*>""").containsMatchIn(firstRow)
+        if (hasI && hasJ) return xml
+        val headers = buildString {
+            if (!hasI) append("""<c r="I1" t="inlineStr"><is><t>Папка вложения</t></is></c>""")
+            if (!hasJ) append("""<c r="J1" t="inlineStr"><is><t>Файл вложения</t></is></c>""")
+        }
+        val updatedRow = firstRow.replace("</row>", headers + "</row>")
+        return xml.replace(firstRow, updatedRow)
+    }
+
+    private fun escape(v: String) = v.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&apos;")
+    private fun column(ref: String) = ref.takeWhile { it.isLetter() }
+    private fun parseDateOrExcelSerial(v: String): LocalDate? {
+        runCatching { return LocalDate.parse(v, dateFormatter) }
+        runCatching { return LocalDate.parse(v, displayDateFormatter) }
+        val serial = v.toDoubleOrNull() ?: return null
+        return runCatching { LocalDate.of(1899, 12, 30).plusDays(serial.toLong()) }.getOrNull()
+    }
+
+    private fun parseTimeOrExcelSerial(v: String): LocalTime? {
+        runCatching { return LocalTime.parse(v, timeFormatter) }
+        runCatching { return LocalTime.parse(v, displayTimeFormatter) }
+        val serial = v.toDoubleOrNull() ?: return null
+        val seconds = (serial - serial.toLong()) * 86_400.0
+        return runCatching {
+            LocalTime.MIDNIGHT.plusSeconds(seconds.toLong().coerceIn(0, 86_399))
+        }.getOrNull()
+    }
+
+    private fun unzip(bytes: ByteArray): Map<String,ByteArray> {
+        val out = linkedMapOf<String,ByteArray>()
+        ZipInputStream(bytes.inputStream()).use { z ->
+            while (true) {
+                val e = z.nextEntry ?: break
+                if (!e.isDirectory) out[e.name] = z.readBytes()
+            }
+        }
+        return out
+    }
+
+    private fun zip(entries: Map<String,ByteArray>): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { z ->
+            entries.forEach { (name,data) ->
+                z.putNextEntry(ZipEntry(name)); z.write(data); z.closeEntry()
+            }
+        }
+        return out.toByteArray()
+    }
+}
