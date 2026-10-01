@@ -893,7 +893,14 @@ private fun AnalyticsTable(
         buckets.take(100).forEach { bucket ->
             HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                Text(bucket.label, Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                Column(Modifier.weight(1f)) {
+                    Text(bucket.label, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                    if (groupBy == AnalyticsGroupBy.TASK) {
+                        bucket.tasks.firstOrNull()?.let { task ->
+                            Text("${task.date ?: ""} • ${task.taskType}", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
                 Text(
                     if (bucket.value % 1.0 == 0.0) "${bucket.value.toInt()}" else "${"%.2f".format(java.util.Locale.getDefault(), bucket.value)}",
                     Modifier.width(80.dp), style = MaterialTheme.typography.bodySmall
