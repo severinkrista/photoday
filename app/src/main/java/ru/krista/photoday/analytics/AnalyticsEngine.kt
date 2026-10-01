@@ -72,28 +72,46 @@ object AnalyticsEngine {
         val average = if (filtered.isEmpty()) 0.0 else totalDifficulty.toDouble() / filtered.size
         val max = filtered.maxOfOrNull { it.difficulty ?: 0 } ?: 0
 
-        val grouped = linkedMapOf<String, MutableList<TaskRecord>>()
-        filtered.forEach { record ->
-            val key = groupKey(record, query.groupBy)
-            grouped.getOrPut(key) { mutableListOf() }.add(record)
-        }
+        val buckets = if (query.groupBy == AnalyticsGroupBy.TASK) {
+            filtered.sortedWith(
+                compareByDescending<TaskRecord> { it.difficulty ?: 0 }
+                    .thenByDescending { it.date }
+                    .thenByDescending { it.time }
+            ).take(query.limit.coerceIn(1, 100)).map { task ->
+                val difficulty = (task.difficulty ?: 0).toDouble()
+                val value = when (query.metric) {
+                    AnalyticsMetric.COUNT -> 1.0
+                    AnalyticsMetric.SUM_DIFFICULTY,
+                    AnalyticsMetric.AVG_DIFFICULTY,
+                    AnalyticsMetric.MIN_DIFFICULTY,
+                    AnalyticsMetric.MAX_DIFFICULTY -> difficulty
+                }
+                AnalyticsBucket(task.task, value, 1, listOf(task))
+            }
+        } else {
+            val grouped = linkedMapOf<String, MutableList<TaskRecord>>()
+            filtered.forEach { record ->
+                val key = groupKey(record, query.groupBy)
+                grouped.getOrPut(key) { mutableListOf() }.add(record)
+            }
 
-        val buckets = grouped.map { (label, tasks) ->
-            val values = tasks.map { (it.difficulty ?: 0).toDouble() }
-            val value = when (query.metric) {
-                AnalyticsMetric.COUNT -> tasks.size.toDouble()
-                AnalyticsMetric.SUM_DIFFICULTY -> values.sum()
-                AnalyticsMetric.AVG_DIFFICULTY -> if (values.isEmpty()) 0.0 else values.average()
-                AnalyticsMetric.MIN_DIFFICULTY -> values.minOrNull() ?: 0.0
-                AnalyticsMetric.MAX_DIFFICULTY -> values.maxOrNull() ?: 0.0
-            }
-            AnalyticsBucket(label, value, tasks.size, tasks)
-        }.let { list ->
-            if (query.groupBy == AnalyticsGroupBy.DATE || query.groupBy == AnalyticsGroupBy.WEEK || query.groupBy == AnalyticsGroupBy.MONTH) {
-                list.sortedBy { bucket -> bucketSortKey(bucket.label, query.groupBy) }
-            } else {
-                list.sortedByDescending { it.value }
-            }
+            grouped.map { (label, tasks) ->
+                val values = tasks.map { (it.difficulty ?: 0).toDouble() }
+                val value = when (query.metric) {
+                    AnalyticsMetric.COUNT -> tasks.size.toDouble()
+                    AnalyticsMetric.SUM_DIFFICULTY -> values.sum()
+                    AnalyticsMetric.AVG_DIFFICULTY -> if (values.isEmpty()) 0.0 else values.average()
+                    AnalyticsMetric.MIN_DIFFICULTY -> values.minOrNull() ?: 0.0
+                    AnalyticsMetric.MAX_DIFFICULTY -> values.maxOrNull() ?: 0.0
+                }
+                AnalyticsBucket(label, value, tasks.size, tasks)
+            }.sortedWith(
+                if (query.groupBy == AnalyticsGroupBy.DATE || query.groupBy == AnalyticsGroupBy.WEEK || query.groupBy == AnalyticsGroupBy.MONTH) {
+                    compareBy { bucket -> bucket.tasks.minOfOrNull { it.date ?: LocalDate.MAX } ?: LocalDate.MAX }
+                } else {
+                    compareByDescending<AnalyticsBucket> { it.value }.thenBy { it.label }
+                }
+            )
         }
 
         return AnalyticsResult(
@@ -101,9 +119,7 @@ object AnalyticsEngine {
             totalDifficulty = totalDifficulty,
             averageDifficulty = average,
             maxDifficulty = max,
-            buckets = if (query.groupBy == AnalyticsGroupBy.TASK) {
-                buckets.sortedByDescending { it.value }.take(query.limit.coerceIn(1, 100))
-            } else buckets
+            buckets = buckets
         )
     }
 
