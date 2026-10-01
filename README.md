@@ -28,3 +28,20 @@ UI -> repository -> платформенные adapters -> Яндекс Диск
 - отдельную страницу настроек.
 
 Подробная архитектура описана в web-extension/ARCHITECTURE.md.
+
+## Сборка
+
+Android:
+
+- `build-apk.bat` — сам скачивает Gradle 9.6.0 и JDK 17 в `.tools`, собирает debug-APK
+  и кладёт его в `build-output/photoday-<версия>.apk`;
+- версии Gradle, Android Gradle Plugin и Kotlin Compose задаются в одном месте —
+  `settings.gradle.kts` (`pluginManagement { plugins { ... } }`). Не дублируйте `version`
+  в `build.gradle.kts` и `app/build.gradle.kts`: разные версии в двух файлах дают ошибку
+  «the plugin is already on the classpath with a different version».
+
+Браузерное расширение:
+
+- `cd web-extension && npm install && npm run build` (TypeScript + esbuild);
+- собранные `popup.js`, `settings.js`, `viewer.js` в корне `web-extension` коммитятся,
+  их пересобирает workflow `.github/workflows/web-extension-build.yml`.

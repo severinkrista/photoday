@@ -127,19 +127,23 @@
   // src/settings.ts
   var settings;
   var $ = (id) => document.getElementById(id);
+  async function bindClick(id, handler) {
+    const el = $(id);
+    if (el) el.onclick = handler;
+  }
   async function init() {
     try {
       settings = await getSettings();
       render();
-      $("save").onclick = () => void save();
-      $("connect").onclick = () => void connect();
-      $("testConnection").onclick = () => void test();
-      $("clearCache").onclick = () => void clearCache();
-      $("addType").onclick = () => {
+      bindClick("save", () => void save());
+      bindClick("connect", () => void connect());
+      bindClick("testConnection", () => void test());
+      bindClick("clearCache", () => void clearCache());
+      bindClick("addType", () => {
         syncTypesFromDom();
         settings.taskTypes.push({ code: "\u041D\u043E\u0432\u044B\u0439", description: "" });
         render();
-      };
+      });
       $("modeTasks").onchange = () => {
         syncDisplayValue();
         syncTypesFromDom();
@@ -153,7 +157,8 @@
         render();
       };
     } catch (e) {
-      $("status").textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A: " + (e instanceof Error ? e.message : String(e));
+      const status = $("status");
+      if (status) status.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A: " + (e instanceof Error ? e.message : String(e));
     }
   }
   function syncDisplayValue() {
@@ -188,6 +193,7 @@
       del.type = "button";
       del.textContent = "\u0423\u0434\u0430\u043B\u0438\u0442\u044C";
       del.onclick = () => {
+        if (!confirm(`\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0442\u0438\u043F \u0437\u0430\u0434\u0430\u0447\u0438 \xAB${t.code} \u2014 ${t.description}\xBB?`)) return;
         syncTypesFromDom();
         settings.taskTypes.splice(i, 1);
         render();

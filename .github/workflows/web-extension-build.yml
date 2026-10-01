@@ -20,8 +20,8 @@ jobs:
       run:
         working-directory: web-extension
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm install
@@ -34,7 +34,7 @@ jobs:
           git add web-extension/popup.js web-extension/settings.js web-extension/viewer.js
           git diff --cached --quiet || git commit -m "Build browser extension"
           git push
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: photoday-browser-extension
           path: web-extension/dist
