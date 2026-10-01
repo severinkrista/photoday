@@ -860,7 +860,7 @@ private fun AnalyticsVicoChart(
     val zoomState = rememberVicoZoomState(
         zoomEnabled = visible.size > 6,
         initialZoom = if (visible.size > 12) {
-            com.patrykandpatrick.vico.compose.cartesian.Zoom.min(0.65f)
+            com.patrykandpatrick.vico.compose.cartesian.Zoom.fixed(0.65f)
         } else {
             com.patrykandpatrick.vico.compose.cartesian.Zoom.Content
         }
