@@ -14,7 +14,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -46,6 +45,18 @@ import ru.krista.photoday.analytics.AnalyticsQuery
 import ru.krista.photoday.domain.TaskRecord
 import ru.krista.photoday.presentation.MainUiState
 import ru.krista.photoday.presentation.MainViewModel
+import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.core.cartesian.data.columnModel
+import com.patrykandpatrick.vico.core.cartesian.data.lineModel
+
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -820,8 +831,8 @@ private fun AnalyticsVisualization(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Результат", style = MaterialTheme.typography.titleMedium)
             when (query.chart) {
-                AnalyticsChart.BAR -> AnalyticsBarChart(result.buckets)
-                AnalyticsChart.LINE -> AnalyticsLineChart(result.buckets)
+                AnalyticsChart.BAR -> AnalyticsVicoChart(result.buckets, line = false)
+                AnalyticsChart.LINE -> AnalyticsVicoChart(result.buckets, line = true)
                 AnalyticsChart.TABLE -> AnalyticsTable(result.buckets, query.groupBy)
             }
         }
@@ -829,60 +840,65 @@ private fun AnalyticsVisualization(
 }
 
 @Composable
-private fun AnalyticsBarChart(buckets: List<ru.krista.photoday.analytics.AnalyticsBucket>) {
-    val max = buckets.maxOfOrNull { it.value } ?: 1.0
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        buckets.take(30).forEach { bucket ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(bucket.label, Modifier.width(78.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
-                Box(Modifier.weight(1f).height(22.dp).padding(horizontal = 4.dp)) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth((bucket.value / max).toFloat().coerceIn(0f, 1f)))
-                }
-                Text(
-                    if (bucket.value % 1.0 == 0.0) "${bucket.value.toInt()}" else "${"%.2f".format(java.util.Locale.getDefault(), bucket.value)}",
-                    Modifier.width(54.dp), style = MaterialTheme.typography.labelSmall
-                )
-            }
-        }
-        if (buckets.size > 30) Text("Показаны первые 30 групп.", style = MaterialTheme.typography.labelSmall)
-    }
-}
+private fun AnalyticsVicoChart(
+    buckets: List<ru.krista.photoday.analytics.AnalyticsBucket>,
+    line: Boolean
+) {
+    val visible = buckets.take(if (line) 60 else 40)
+    val modelProducer = remember { CartesianChartModelProducer() }
 
-@Composable
-private fun AnalyticsLineChart(buckets: List<ru.krista.photoday.analytics.AnalyticsBucket>) {
-    val points = buckets.take(60)
-    val lineColor = MaterialTheme.colorScheme.primary
-    val max = points.maxOfOrNull { it.value }?.coerceAtLeast(1.0) ?: 1.0
-    val min = points.minOfOrNull { it.value } ?: 0.0
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Canvas(Modifier.fillMaxWidth().height(180.dp)) {
-            if (points.size >= 2) {
-                val step = size.width / (points.size - 1)
-                fun y(value: Double): Float = (size.height - ((value - min) / (max - min).coerceAtLeast(1e-9) * size.height)).toFloat()
-                for (i in 0 until points.lastIndex) {
-                    drawLine(
-                        color = lineColor,
-                        start = androidx.compose.ui.geometry.Offset(i * step, y(points[i].value)),
-                        end = androidx.compose.ui.geometry.Offset((i + 1) * step, y(points[i + 1].value)),
-                        strokeWidth = 4f
-                    )
-                }
-                points.forEachIndexed { i, bucket ->
-                    drawCircle(
-                        color = lineColor,
-                        radius = 5f,
-                        center = androidx.compose.ui.geometry.Offset(i * step, y(bucket.value))
-                    )
-                }
-            }
-        }
-        if (points.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(points.first().label, style = MaterialTheme.typography.labelSmall)
-                if (points.size > 1) Text(points.last().label, style = MaterialTheme.typography.labelSmall)
+    LaunchedEffect(visible, line) {
+        modelProducer.runTransaction {
+            if (line) {
+                lineModel { series(visible.map { it.value }) }
+            } else {
+                columnModel { series(visible.map { it.value }) }
             }
         }
     }
+
+    val zoomState = rememberVicoZoomState(
+        zoomEnabled = visible.size > 6,
+        initialZoom = if (visible.size > 12) {
+            com.patrykandpatrick.vico.core.cartesian.Zoom.min(0.65f)
+        } else {
+            com.patrykandpatrick.vico.core.cartesian.Zoom.Content
+        }
+    )
+    val scrollState = rememberVicoScrollState(
+        scrollEnabled = visible.size > 10
+    )
+
+    val labels = remember(visible) {
+        visible.mapIndexed { index, bucket -> index to bucket.label }
+    }
+
+    val bottomAxis = HorizontalAxis.rememberBottom(
+        valueFormatter = { _, value, _ ->
+            labels.getOrNull(value.toInt())?.second ?: ""
+        },
+        guideline = null
+    )
+
+    CartesianChartHost(
+        chart = rememberCartesianChart(
+            if (line) rememberLineCartesianLayer() else rememberColumnCartesianLayer(),
+            startAxis = VerticalAxis.rememberStart(),
+            bottomAxis = bottomAxis
+        ),
+        modelProducer = modelProducer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(270.dp),
+        zoomState = zoomState,
+        scrollState = scrollState
+    )
+
+    Text(
+        "Потяните график для прокрутки; щипок — масштаб.",
+        style = MaterialTheme.typography.labelSmall,
+        modifier = Modifier.padding(top = 4.dp)
+    )
 }
 
 @Composable
