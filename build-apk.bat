@@ -85,7 +85,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-for /f "tokens=2 delims=\"" %%V in ('findstr /r /c:"versionName = ".*"" app\build.gradle.kts') do set "VERSION=%%V"
+rem Read versionName with PowerShell to avoid fragile cmd quote parsing.
+set "VERSION="
+for /f "delims=" %%V in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "$line=Get-Content -LiteralPath 'app\build.gradle.kts' ^| Where-Object { $_ -match '^\s*versionName\s*=\s*' } ^| Select-Object -First 1; if($line -match 'versionName\s*=\s*"([^"]+)"'){ $Matches[1] }"') do set "VERSION=%%V"
 
 if not defined VERSION (
     echo Could not determine app version.
