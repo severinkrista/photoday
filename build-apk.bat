@@ -85,9 +85,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem Read versionName with PowerShell to avoid fragile cmd quote parsing.
+rem Read versionName using findstr so the batch file does not depend on nested PowerShell quotes.
 set "VERSION="
-for /f "delims=" %%V in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "$line=Get-Content -LiteralPath 'app\build.gradle.kts' ^| Where-Object { $_ -match '^\s*versionName\s*=\s*' } ^| Select-Object -First 1; if($line -match 'versionName\s*=\s*"([^"]+)"'){ $Matches[1] }"') do set "VERSION=%%V"
+for /f "tokens=2 delims==" %%V in ('findstr /R /C:"versionName =" "app\build.gradle.kts"') do set "VERSION=%%~V"
+set "VERSION=!VERSION: =!"
+set "VERSION=!VERSION:"=!"
 
 if not defined VERSION (
     echo Could not determine app version.
