@@ -58,8 +58,17 @@
     localStorage.setItem(key, JSON.stringify(value));
   }
   async function getSettings() {
-    const s = await get("settings", DEFAULT_SETTINGS);
-    return { ...DEFAULT_SETTINGS, ...s, taskTypes: s.taskTypes?.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes };
+    const s = await get("settings", {});
+    const mode = s.displayMode === "days" ? "days" : "tasks";
+    const tasks = Number(s.tasksToShow);
+    const days2 = Number(s.daysToShow);
+    return {
+      displayMode: mode,
+      tasksToShow: Number.isFinite(tasks) && tasks > 0 ? Math.floor(tasks) : DEFAULT_SETTINGS.tasksToShow,
+      daysToShow: Number.isFinite(days2) && days2 > 0 ? Math.floor(days2) : DEFAULT_SETTINGS.daysToShow,
+      diskPath: typeof s.diskPath === "string" && s.diskPath.trim() ? s.diskPath : DEFAULT_SETTINGS.diskPath,
+      taskTypes: Array.isArray(s.taskTypes) && s.taskTypes.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes.map((x) => ({ ...x }))
+    };
   }
   async function getToken() {
     return get("token", null);

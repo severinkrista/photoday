@@ -30,8 +30,24 @@
     localStorage.setItem(key, JSON.stringify(value));
   }
   async function getSettings() {
-    const s = await get("settings", DEFAULT_SETTINGS);
-    return { ...DEFAULT_SETTINGS, ...s, taskTypes: s.taskTypes?.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes };
+    const s = await get("settings", {});
+    const mode = s.displayMode === "days" ? "days" : "tasks";
+    const tasks = Number(s.tasksToShow);
+    const days = Number(s.daysToShow);
+    return {
+      displayMode: mode,
+      tasksToShow: Number.isFinite(tasks) && tasks > 0 ? Math.floor(tasks) : DEFAULT_SETTINGS.tasksToShow,
+      daysToShow: Number.isFinite(days) && days > 0 ? Math.floor(days) : DEFAULT_SETTINGS.daysToShow,
+      diskPath: typeof s.diskPath === "string" && s.diskPath.trim() ? s.diskPath : DEFAULT_SETTINGS.diskPath,
+      taskTypes: Array.isArray(s.taskTypes) && s.taskTypes.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes.map((x) => ({ ...x }))
+    };
+  }
+  async function clearLocalData() {
+    if (storage) {
+      await storage.clear();
+      return;
+    }
+    localStorage.clear();
   }
   async function saveSettings(s) {
     await set("settings", s);
@@ -118,6 +134,7 @@
       $("save").onclick = () => void save();
       $("connect").onclick = () => void connect();
       $("testConnection").onclick = () => void test();
+      $("clearCache").onclick = () => void clearCache();
       $("addType").onclick = () => {
         syncTypesFromDom();
         settings.taskTypes.push({ code: "\u041D\u043E\u0432\u044B\u0439", description: "" });
@@ -184,7 +201,7 @@
     syncTypesFromDom();
     const diskPath = $("diskPath").value.trim();
     const tasksToShow = Math.max(1, Number($("tasks").value) || 10);
-    const daysToShow = Math.max(1, Number($("days").value) || 2);
+    const daysToShow = Math.max(1, settings.daysToShow || 2);
     const displayMode = $("modeDays").checked ? "days" : "tasks";
     const taskTypes = settings.taskTypes.map((t) => ({ code: t.code.trim(), description: t.description.trim() }));
     if (!diskPath) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A XLSX.");
@@ -193,6 +210,19 @@
     const codes = taskTypes.map((t) => t.code.toLocaleLowerCase());
     if (new Set(codes).size !== codes.length) throw new Error("\u041A\u043E\u0434\u044B \u0442\u0438\u043F\u043E\u0432 \u0437\u0430\u0434\u0430\u0447 \u043D\u0435 \u0434\u043E\u043B\u0436\u043D\u044B \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0442\u044C\u0441\u044F.");
     return { displayMode, tasksToShow: displayMode === "tasks" ? tasksToShow : settings.tasksToShow, daysToShow: displayMode === "days" ? tasksToShow : daysToShow, diskPath, taskTypes };
+  }
+  async function clearCache() {
+    if (!confirm("\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F? \u0411\u0443\u0434\u0443\u0442 \u0443\u0434\u0430\u043B\u0435\u043D\u044B \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438, \u0442\u043E\u043A\u0435\u043D \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0430 \u0438 \u043E\u0447\u0435\u0440\u0435\u0434\u044C \u043D\u0435\u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043D\u044B\u0445 \u0437\u0430\u0434\u0430\u0447. \u0414\u0430\u043D\u043D\u044B\u0435 \u0432 XLSX \u043D\u0430 \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0435 \u043D\u0435 \u0443\u0434\u0430\u043B\u044F\u044E\u0442\u0441\u044F.")) return;
+    try {
+      await clearLocalData();
+      settings = await getSettings();
+      render();
+      $("connectionStatus").textContent = "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0441\u0431\u0440\u043E\u0448\u0435\u043D\u044B. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u0437\u0430\u043D\u043E\u0432\u043E \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438.";
+      $("testResult").textContent = "";
+      $("status").textContent = "\u041A\u044D\u0448 \u0438 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0441\u0431\u0440\u043E\u0448\u0435\u043D\u044B.";
+    } catch (e) {
+      $("status").textContent = "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435: " + (e instanceof Error ? e.message : String(e));
+    }
   }
   async function save() {
     try {
