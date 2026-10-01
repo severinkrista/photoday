@@ -20,11 +20,24 @@ android {
         buildConfig = true
     }
 
+    // Одинаковый уровень Java/Kotlin независимо от установленного JDK
+    // (локально может быть JDK 17 или 25, в CI — 17).
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "/META-INF/{LGPL2.1,NOTICE}"
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
