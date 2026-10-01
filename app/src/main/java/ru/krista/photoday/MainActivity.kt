@@ -860,13 +860,18 @@ private fun AnalyticsLineChart(buckets: List<ru.krista.photoday.analytics.Analyt
                 fun y(value: Double): Float = (size.height - ((value - min) / (max - min).coerceAtLeast(1e-9) * size.height)).toFloat()
                 for (i in 0 until points.lastIndex) {
                     drawLine(
+                        color = MaterialTheme.colorScheme.primary,
                         start = androidx.compose.ui.geometry.Offset(i * step, y(points[i].value)),
                         end = androidx.compose.ui.geometry.Offset((i + 1) * step, y(points[i + 1].value)),
                         strokeWidth = 4f
                     )
                 }
                 points.forEachIndexed { i, bucket ->
-                    drawCircle(radius = 5f, center = androidx.compose.ui.geometry.Offset(i * step, y(bucket.value)))
+                    drawCircle(
+                        color = MaterialTheme.colorScheme.primary,
+                        radius = 5f,
+                        center = androidx.compose.ui.geometry.Offset(i * step, y(bucket.value))
+                    )
                 }
             }
         }
