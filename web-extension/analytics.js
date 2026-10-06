@@ -40894,18 +40894,20 @@
         if (value > max) max = value;
         days2.push({ iso, day: day.getDate(), value, count: tasks.length });
       }
-      const firstVisible = days2.find((cell) => cell);
-      if (firstVisible) {
-        const month = dateFromIso(firstVisible.iso).getMonth();
-        if (month !== lastMonth) {
-          lastMonth = month;
-          months2.push({ label: monthNames[month], index: weeks.length });
-        }
-      }
       weeks.push({ label: isoFromDate(cursor), days: days2 });
       cursor.setDate(cursor.getDate() + 7);
       if (weeks.length > 400) break;
     }
+    weeks.forEach((week, weekIndex) => {
+      week.days.forEach((cell) => {
+        if (!cell) return;
+        const month = dateFromIso(cell.iso).getMonth();
+        if (month !== lastMonth) {
+          lastMonth = month;
+          months2.push({ label: monthNames[month], index: weekIndex });
+        }
+      });
+    });
     return { weeks, max, months: months2 };
   }
   function csvCell(value) {
@@ -41310,11 +41312,12 @@
     const { weeks, max, months: months2 } = calendarWeeks(records, from2, to2, metric);
     const monthRow = document.createElement("div");
     monthRow.className = "heatmap-months";
+    monthRow.style.setProperty("--heat-weeks", String(Math.max(1, weeks.length)));
     months2.forEach((month, index2) => {
       const cell = document.createElement("span");
       cell.textContent = month.label;
-      const span = (months2[index2 + 1]?.index ?? weeks.length) - month.index;
-      cell.style.gridColumn = `span ${Math.max(1, span)}`;
+      const span = Math.max(1, (months2[index2 + 1]?.index ?? weeks.length) - month.index);
+      cell.style.gridColumn = `${month.index + 1} / span ${span}`;
       monthRow.append(cell);
     });
     const labelColumn = document.createElement("div");

@@ -374,18 +374,22 @@ export function calendarWeeks(records:TaskRecord[],from:string,to:string,metric:
       if(value>max)max=value;
       days.push({iso,day:day.getDate(),value,count:tasks.length});
     }
-    const firstVisible=days.find(cell=>cell);
-    if(firstVisible){
-      const month=dateFromIso(firstVisible.iso).getMonth();
-      if(month!==lastMonth){
-        lastMonth=month;
-        months.push({label:monthNames[month],index:weeks.length});
-      }
-    }
     weeks.push({label:isoFromDate(cursor),days});
     cursor.setDate(cursor.getDate()+7);
     if(weeks.length>400)break;
   }
+  // Подпись месяца ставим над той неделей, в которой месяц начался: если первое число
+  // попало на середину недели, подпись всё равно указывает на эту неделю.
+  weeks.forEach((week,weekIndex)=>{
+    week.days.forEach(cell=>{
+      if(!cell)return;
+      const month=dateFromIso(cell.iso).getMonth();
+      if(month!==lastMonth){
+        lastMonth=month;
+        months.push({label:monthNames[month],index:weekIndex});
+      }
+    });
+  });
   return {weeks,max,months};
 }
 

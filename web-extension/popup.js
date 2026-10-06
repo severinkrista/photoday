@@ -12,6 +12,8 @@
   ];
   var DEFAULT_REMINDERS = { enabled: true, from: "09:00", to: "18:00", every: 1, unit: "hours" };
   var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES, reminders: DEFAULT_REMINDERS };
+  var POPUP_SIZE = { minWidth: 320, minHeight: 360, maxWidth: 800, maxHeight: 600 };
+  var DEFAULT_POPUP_SIZE = { width: 720, height: 600 };
 
   // src/storage.ts
   var storage = globalThis.browser?.storage?.local ?? globalThis.chrome?.storage?.local;
@@ -117,6 +119,27 @@
       return { task: x.task, createdAt: x.createdAt, attachment: { name: x.attachment.name, type: x.attachment.type, data: toBase64(x.attachment.data) } };
     });
     await set("pending", stored);
+  }
+  var POPUP_SIZE_KEY = "popupSize";
+  function normalizePopupSize(value) {
+    const clamp = (raw, min, max) => {
+      const n = Number(raw);
+      return Number.isFinite(n) ? Math.min(Math.max(Math.round(n), min), max) : null;
+    };
+    const width = clamp(value?.width, POPUP_SIZE.minWidth, POPUP_SIZE.maxWidth);
+    const height = clamp(value?.height, POPUP_SIZE.minHeight, POPUP_SIZE.maxHeight);
+    return width !== null && height !== null ? { width, height } : null;
+  }
+  async function getPopupSize() {
+    try {
+      return normalizePopupSize(await get(POPUP_SIZE_KEY, null));
+    } catch (e) {
+      return null;
+    }
+  }
+  async function savePopupSize(size) {
+    const clean = normalizePopupSize(size);
+    if (clean) await set(POPUP_SIZE_KEY, clean);
   }
 
   // node_modules/xlsx-republish/xlsx.mjs
@@ -33829,6 +33852,7 @@
   var records = [];
   var pending = [];
   var adding = false;
+  var popupSize = { ...DEFAULT_POPUP_SIZE };
   var scheduledAt = null;
   var retrying = /* @__PURE__ */ new Set();
   var $2 = (id) => document.getElementById(id);
@@ -33883,11 +33907,78 @@
     input("scheduleDate").addEventListener("change", scheduleFromInputs);
     input("scheduleTime").addEventListener("change", scheduleFromInputs);
   }
+  function clampPopupSize(width, height) {
+    const clean = normalizePopupSize({ width, height });
+    return clean ?? { ...DEFAULT_POPUP_SIZE };
+  }
+  function cachedPopupSize() {
+    try {
+      return normalizePopupSize(JSON.parse(localStorage.getItem(POPUP_SIZE_KEY) ?? "null"));
+    } catch (e) {
+      return null;
+    }
+  }
+  function applyPopupSize(size) {
+    if (!size || document.body.classList.contains("expanded")) return;
+    popupSize = size;
+    document.body.style.width = size.width + "px";
+    document.body.style.height = size.height + "px";
+  }
+  function cachePopupSize(size) {
+    try {
+      localStorage.setItem(POPUP_SIZE_KEY, JSON.stringify(size));
+    } catch (e) {
+    }
+  }
+  async function persistPopupSize(size) {
+    popupSize = size;
+    applyPopupSize(size);
+    cachePopupSize(size);
+    try {
+      await savePopupSize(size);
+    } catch (e) {
+    }
+  }
+  function initResize() {
+    const handle = $2("resizeHandle");
+    if (!handle) return;
+    let origin = null;
+    const sizeFromPointer = (e) => clampPopupSize(
+      (origin?.width ?? popupSize.width) + (e.screenX - (origin?.x ?? 0)),
+      (origin?.height ?? popupSize.height) + (e.screenY - (origin?.y ?? 0))
+    );
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      origin = { x: e.screenX, y: e.screenY, width: popupSize.width, height: popupSize.height };
+      try {
+        handle.setPointerCapture?.(e.pointerId);
+      } catch (err) {
+      }
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (origin) applyPopupSize(sizeFromPointer(e));
+    });
+    handle.addEventListener("pointerup", (e) => {
+      if (!origin) return;
+      const size = sizeFromPointer(e);
+      origin = null;
+      void persistPopupSize(size).then(() => showNotice(`\u0420\u0430\u0437\u043C\u0435\u0440 \u043E\u043A\u043D\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D: ${size.width}\xD7${size.height}.`));
+    });
+    handle.addEventListener("pointercancel", () => {
+      origin = null;
+    });
+    handle.addEventListener("dblclick", () => {
+      origin = null;
+      void persistPopupSize({ ...DEFAULT_POPUP_SIZE }).then(() => showNotice(`\u0420\u0430\u0437\u043C\u0435\u0440 \u043E\u043A\u043D\u0430 \u0441\u0431\u0440\u043E\u0448\u0435\u043D: ${DEFAULT_POPUP_SIZE.width}\xD7${DEFAULT_POPUP_SIZE.height}.`));
+    });
+  }
   async function applyEntryMode() {
     const params = new URLSearchParams(location.search);
     const flagged = await consumeAddEntry();
     const fromNotification = params.get("new") === "1" || flagged;
     if (!fromNotification) return;
+    document.body.style.width = "";
+    document.body.style.height = "";
     document.body.classList.add("expanded");
     document.querySelector(".add-card")?.scrollIntoView?.({ block: "start" });
     input("task").focus();
@@ -34107,8 +34198,14 @@
     return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
   }
   bind();
-  void applyEntryMode();
-  void init();
+  initResize();
+  applyPopupSize(cachedPopupSize());
+  void applyEntryMode().then(async () => {
+    const stored = await getPopupSize();
+    if (stored) cachePopupSize(stored);
+    applyPopupSize(stored ?? cachedPopupSize());
+    await init();
+  });
 })();
 /*! Bundled license information:
 

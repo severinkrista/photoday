@@ -1,11 +1,13 @@
-import type {AppSettings,PendingTask,TaskRecord} from "./model.js";
-import {DEFAULT_SETTINGS} from "./model.js";
-import {consumeAddEntry,getPendingTasks,getSettings,getToken,savePendingTasks} from "./storage.js";
+import type {AppSettings,PendingTask,PopupSize,TaskRecord} from "./model.js";
+import {DEFAULT_POPUP_SIZE,DEFAULT_SETTINGS} from "./model.js";
+import {POPUP_SIZE_KEY,consumeAddEntry,getPendingTasks,getPopupSize,getSettings,getToken,normalizePopupSize,savePendingTasks,savePopupSize} from "./storage.js";
 import {addTask,getAttachment,getTasks} from "./repository.js";
 import {attachmentFolder} from "./yandex.js";
 import {formatDateTime,localDate,localTime,momentLabel,parseLocalDateTime,partOfDay,weekdayOf} from "./datetime.js";
 
 let settings:AppSettings=DEFAULT_SETTINGS,records:TaskRecord[]=[],pending:PendingTask[]=[],adding=false;
+/** Текущий размер окна: меняется уголком, применяется к body и запоминается. */
+let popupSize:PopupSize={...DEFAULT_POPUP_SIZE};
 /** Момент записи, выбранный вручную; null — берётся текущее время в момент сохранения. */
 let scheduledAt:Date|null=null;
 const retrying=new Set<number|string>();
@@ -41,6 +43,60 @@ function bind(){
   input("scheduleTime").addEventListener("change",scheduleFromInputs);
 }
 
+/** Размер ограничиваем границами popup, чтобы уголок нельзя было утащить за пределы экрана. */
+function clampPopupSize(width:number,height:number):PopupSize{
+  const clean=normalizePopupSize({width,height});
+  return clean??{...DEFAULT_POPUP_SIZE};
+}
+/** Размер из localStorage читается синхронно — окно открывается сразу нужного размера, без мигания. */
+function cachedPopupSize():PopupSize|null{
+  try{return normalizePopupSize(JSON.parse(localStorage.getItem(POPUP_SIZE_KEY)??"null"));}catch(e){return null;}
+}
+/** В режиме «окно новой записи» (expanded) страница занимает всё окно, размер из настроек не применяется. */
+function applyPopupSize(size:PopupSize|null){
+  if(!size||document.body.classList.contains("expanded"))return;
+  popupSize=size;
+  document.body.style.width=size.width+"px";
+  document.body.style.height=size.height+"px";
+}
+/** Кэш размера в localStorage: следующее открытие получает нужный размер без ожидания хранилища. */
+function cachePopupSize(size:PopupSize){
+  try{localStorage.setItem(POPUP_SIZE_KEY,JSON.stringify(size));}catch(e){/* приватный режим — размер просто не запомнится мгновенно */}
+}
+async function persistPopupSize(size:PopupSize){
+  popupSize=size;
+  applyPopupSize(size);
+  cachePopupSize(size);
+  try{await savePopupSize(size);}catch(e){/* хранилище недоступно — останется текущий размер окна */}
+}
+/** Уголок в правом нижнем углу: тянем — окно меняет размер, отпускаем — размер запоминается. */
+function initResize(){
+  const handle=$<HTMLButtonElement>("resizeHandle");
+  if(!handle)return;
+  let origin:{x:number;y:number;width:number;height:number}|null=null;
+  const sizeFromPointer=(e:PointerEvent)=>clampPopupSize(
+    (origin?.width??popupSize.width)+(e.screenX-(origin?.x??0)),
+    (origin?.height??popupSize.height)+(e.screenY-(origin?.y??0))
+  );
+  handle.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    origin={x:e.screenX,y:e.screenY,width:popupSize.width,height:popupSize.height};
+    try{handle.setPointerCapture?.(e.pointerId);}catch(err){/* без захвата указателя тоже работает */}
+  });
+  handle.addEventListener("pointermove",e=>{if(origin)applyPopupSize(sizeFromPointer(e));});
+  handle.addEventListener("pointerup",e=>{
+    if(!origin)return;
+    const size=sizeFromPointer(e);
+    origin=null;
+    void persistPopupSize(size).then(()=>showNotice(`Размер окна сохранён: ${size.width}×${size.height}.`));
+  });
+  handle.addEventListener("pointercancel",()=>{origin=null;});
+  handle.addEventListener("dblclick",()=>{
+    origin=null;
+    void persistPopupSize({...DEFAULT_POPUP_SIZE}).then(()=>showNotice(`Размер окна сброшен: ${DEFAULT_POPUP_SIZE.width}×${DEFAULT_POPUP_SIZE.height}.`));
+  });
+}
+
 /** Открытие по кнопке «ОК» в напоминании: окно больше и сразу встаёт в поле описания задачи. */
 async function applyEntryMode(){
   const params=new URLSearchParams(location.search);
@@ -48,6 +104,9 @@ async function applyEntryMode(){
   const flagged=await consumeAddEntry();
   const fromNotification=params.get("new")==="1"||flagged;
   if(!fromNotification)return;
+  // В режиме окна новой записи страница занимает всё окно: снимаем размер, выставленный для popup.
+  document.body.style.width="";
+  document.body.style.height="";
   document.body.classList.add("expanded");
   document.querySelector(".add-card")?.scrollIntoView?.({block:"start"});
   input("task").focus();
@@ -202,5 +261,12 @@ function showNotice(text:string){$("notice").textContent=text;$("notice").hidden
 function localDateObject(s:string){const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3])):new Date(s);}
 
 bind();
-void applyEntryMode();
-void init();
+initResize();
+// Сначала показываем запомненный размер, затем уточняем его из chrome.storage и загружаем записи.
+applyPopupSize(cachedPopupSize());
+void applyEntryMode().then(async ()=>{
+  const stored=await getPopupSize();
+  if(stored)cachePopupSize(stored);
+  applyPopupSize(stored??cachedPopupSize());
+  await init();
+});

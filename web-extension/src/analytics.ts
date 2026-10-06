@@ -450,11 +450,14 @@ function renderHeatmap(records:TaskRecord[],from:string,to:string,metric:Analyti
   const {weeks,max,months}=calendarWeeks(records,from,to,metric);
   const monthRow=document.createElement("div");
   monthRow.className="heatmap-months";
+  // Число колонок задаётся переменной, а размер клетки и отступ берутся из общих переменных .heatmap:
+  // строка подписей и сетка клеток считаются по одной и той же формуле.
+  monthRow.style.setProperty("--heat-weeks",String(Math.max(1,weeks.length)));
   months.forEach((month,index)=>{
     const cell=document.createElement("span");
     cell.textContent=month.label;
-    const span=(months[index+1]?.index??weeks.length)-month.index;
-    cell.style.gridColumn=`span ${Math.max(1,span)}`;
+    const span=Math.max(1,(months[index+1]?.index??weeks.length)-month.index);
+    cell.style.gridColumn=`${month.index+1} / span ${span}`;
     monthRow.append(cell);
   });
   const labelColumn=document.createElement("div");
