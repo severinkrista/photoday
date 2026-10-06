@@ -14,6 +14,7 @@ export async function getSettings(){
   tasksToShow:Number.isFinite(tasks)&&tasks>0?Math.floor(tasks):DEFAULT_SETTINGS.tasksToShow,
   daysToShow:Number.isFinite(days)&&days>0?Math.floor(days):DEFAULT_SETTINGS.daysToShow,
   diskPath:typeof s.diskPath==="string"&&s.diskPath.trim()?s.diskPath:DEFAULT_SETTINGS.diskPath,
+  fileUrl:typeof s.fileUrl==="string"?s.fileUrl.trim():"",
   taskTypes:Array.isArray(s.taskTypes)&&s.taskTypes.length?s.taskTypes:DEFAULT_SETTINGS.taskTypes.map(x=>({...x})),
   reminders:normalizeReminders(s.reminders)
  };

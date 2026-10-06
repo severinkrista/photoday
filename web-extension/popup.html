@@ -11,14 +11,17 @@
 <body class="popup">
   <header>
     <h1>Фото дня</h1>
-    <div class="header-actions"><button id="openAnalytics" title="Аналитика">📊</button><button id="openSettings" title="Настройки">⚙</button></div>
+    <div class="header-actions"><button id="openFile" title="Открыть таблицу">📄</button><button id="openAnalytics" title="Аналитика">📊</button><button id="openSettings" title="Настройки">⚙</button></div>
   </header>
   <div id="connection" class="status" hidden></div>
   <div id="error" class="error" hidden></div>
   <div id="notice" class="notice" hidden></div>
   <section class="add-card">
+    <div class="row types-row">
+      <div id="typeChips" class="type-chips" role="group" aria-label="Вид задачи"></div>
+      <select id="typeMore" class="type-more" aria-label="Остальные виды задач" hidden></select>
+    </div>
     <div class="row">
-      <select id="type" aria-label="Вид задачи"></select>
       <div class="difficulty-picker" aria-label="Сложность от 1 до 5">
         <button id="difficulty-1" type="button" aria-label="1 звезда">★</button>
         <button id="difficulty-2" type="button" aria-label="2 звезды">★</button>

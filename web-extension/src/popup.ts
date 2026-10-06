@@ -1,5 +1,5 @@
 import type {AppSettings,PendingTask,PopupSize,TaskRecord} from "./model.js";
-import {DEFAULT_POPUP_SIZE,DEFAULT_SETTINGS} from "./model.js";
+import {DEFAULT_POPUP_SIZE,DEFAULT_SETTINGS,workbookUrl} from "./model.js";
 import {POPUP_SIZE_KEY,consumeAddEntry,getPendingTasks,getPopupSize,getSettings,getToken,normalizePopupSize,savePendingTasks,savePopupSize} from "./storage.js";
 import {addTask,getAttachment,getTasks} from "./repository.js";
 import {attachmentFolder} from "./yandex.js";
@@ -10,6 +10,10 @@ let settings:AppSettings=DEFAULT_SETTINGS,records:TaskRecord[]=[],pending:Pendin
 let popupSize:PopupSize={...DEFAULT_POPUP_SIZE};
 /** Момент записи, выбранный вручную; null — берётся текущее время в момент сохранения. */
 let scheduledAt:Date|null=null;
+/** Выбранный вид задачи: кнопками в строке или, для непоместившихся, из выпадающего списка. */
+let selectedType="";
+/** Сколько видов задач показываем кнопками; остальные уходят в компактный список. */
+const TYPE_CHIPS_LIMIT=10;
 const retrying=new Set<number|string>();
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const input=(id:string)=>$(id) as HTMLInputElement;
@@ -18,6 +22,12 @@ function runtimeApi(){return (globalThis as any).browser?.runtime ?? (globalThis
 /** Корень API (browser/chrome): нужен для tabs, action и других пространств имён. */
 function extensionApi(){return (globalThis as any).browser ?? (globalThis as any).chrome;}
 function openSettings(){runtimeApi()?.openOptionsPage?.();}
+/** Открывает саму таблицу: свою ссылку из настроек либо файл в веб-интерфейсе Яндекс Диска. */
+function openWorkbook(){
+  const api=extensionApi(),url=workbookUrl(settings);
+  if(api?.tabs?.create){void api.tabs.create({url});return;}
+  window.open(url,"_blank");
+}
 /** Аналитика — отдельная страница расширения: в popup для графиков слишком мало места. */
 function openAnalytics(){
   const api=extensionApi();
@@ -27,8 +37,9 @@ function openAnalytics(){
 }
 
 function bind(){
-  if(!$("refresh")||!$("add")||!$("openSettings")||!$("openAnalytics"))throw new Error("Интерфейс popup не загружен полностью.");
+  if(!$("refresh")||!$("add")||!$("openSettings")||!$("openAnalytics")||!$("openFile")||!$("typeChips"))throw new Error("Интерфейс popup не загружен полностью.");
   $("refresh").onclick=()=>void refresh();
+  $("openFile").onclick=()=>openWorkbook();
   $("openSettings").onclick=()=>openSettings();
   $("openAnalytics").onclick=()=>openAnalytics();
   $("add").onclick=()=>void addCurrentTask();
@@ -112,7 +123,7 @@ async function applyEntryMode(){
   input("task").focus();
 }
 
-async function init(){try{settings=await getSettings();pending=await getPendingTasks();renderSettings();setDifficulty(0);renderSchedule();await refresh();}catch(e){showError(e);}}
+async function init(){try{settings=await getSettings();pending=await getPendingTasks();renderTypes();setDifficulty(0);renderSchedule();await refresh();}catch(e){showError(e);}}
 
 function setDifficulty(value:number){for(let i=1;i<=5;i++){const b=$<HTMLButtonElement>("difficulty-"+i);b.classList.toggle("selected",i<=value);b.setAttribute("aria-pressed",String(i<=value));}}
 function selectedDifficulty(){for(let i=5;i>=1;i--)if($<HTMLButtonElement>("difficulty-"+i).classList.contains("selected"))return i;return 0;}
@@ -178,7 +189,7 @@ async function addCurrentTask(){
     const moment=scheduledMoment(),date=localDate(moment),file=input("attachment").files?.[0];
     const suffix=file?"_"+crypto.randomUUID().replace(/-/g,"").slice(0,5):"";
     const target=file?file.name.replace(/(\.[^.]+)?$/,suffix+"$1"):undefined;
-    const task:TaskRecord={id:crypto.randomUUID(),date,time:localTime(moment),weekday:weekdayOf(moment),partOfDay:partOfDay(moment.getHours()),taskType:($("type") as HTMLSelectElement).value,task:text,difficulty:selectedDifficulty(),attachmentFolder:file?attachmentFolder(settings,date):undefined,attachmentName:target};
+    const task:TaskRecord={id:crypto.randomUUID(),date,time:localTime(moment),weekday:weekdayOf(moment),partOfDay:partOfDay(moment.getHours()),taskType:selectedType,task:text,difficulty:selectedDifficulty(),attachmentFolder:file?attachmentFolder(settings,date):undefined,attachmentName:target};
     const item:PendingTask={task,attachment:file?{name:file.name,type:file.type,data:await file.arrayBuffer()}:undefined,createdAt:`${Date.now()}-${crypto.randomUUID()}`};
     pending.push(item);
     try{await savePendingTasks(pending);}catch(e){pending=pending.filter(x=>x.createdAt!==item.createdAt);showError(new Error("Не удалось сохранить задачу в очередь: "+(e instanceof Error?e.message:String(e))));renderPending();return;}
@@ -205,10 +216,53 @@ async function cancel(at:number|string){pending=pending.filter(x=>x.createdAt!==
 
 function clearForm(){($("task") as HTMLTextAreaElement).value="";setDifficulty(0);input("attachment").value="";$("attachmentName").textContent="";}
 
-function renderSettings(){
-  const s=$("type") as HTMLSelectElement;
-  s.innerHTML="";
-  settings.taskTypes.forEach(t=>{const o=document.createElement("option");o.value=t.code;o.textContent=t.code;s.append(o);});
+function selectType(code:string){selectedType=code;syncTypeSelection();}
+/** Подсвечивает выбранный вид задачи и синхронизирует список непоместившихся типов. */
+function syncTypeSelection(){
+  [...$("typeChips").querySelectorAll("button")].forEach(button=>{
+    const active=(button as HTMLButtonElement).dataset.code===selectedType;
+    button.classList.toggle("active",active);
+    button.setAttribute("aria-pressed",String(active));
+  });
+  const more=$("typeMore") as HTMLSelectElement;
+  if(!more.hidden&&![...more.options].some(option=>option.value===selectedType))more.value="";
+}
+/** Виды задач — кнопками в один ряд; если их больше TYPE_CHIPS_LIMIT, остальные выбираются списком. */
+function renderTypes(){
+  const chips=$("typeChips");
+  const more=$("typeMore") as HTMLSelectElement;
+  const types=settings.taskTypes;
+  chips.innerHTML="";
+  more.innerHTML="";
+  types.slice(0,TYPE_CHIPS_LIMIT).forEach(t=>{
+    const button=document.createElement("button");
+    button.type="button";
+    button.className="chip";
+    button.textContent=t.code;
+    button.dataset.code=t.code;
+    button.setAttribute("aria-pressed","false");
+    if(t.description)button.title=t.description;
+    button.onclick=()=>selectType(t.code);
+    chips.append(button);
+  });
+  const rest=types.slice(TYPE_CHIPS_LIMIT);
+  more.hidden=rest.length===0;
+  if(rest.length){
+    const placeholder=document.createElement("option");
+    placeholder.value="";
+    placeholder.textContent=`ещё ${rest.length} ▾`;
+    more.append(placeholder);
+    rest.forEach(t=>{
+      const option=document.createElement("option");
+      option.value=t.code;
+      option.textContent=t.code;
+      if(t.description)option.title=t.description;
+      more.append(option);
+    });
+    more.onchange=()=>{if(more.value)selectType(more.value);};
+  }
+  if(!types.some(t=>t.code===selectedType))selectedType=types[0]?.code??"";
+  syncTypeSelection();
 }
 
 function renderRecords(){

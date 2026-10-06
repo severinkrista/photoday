@@ -1,6 +1,12 @@
 "use strict";
 (() => {
   // src/model.ts
+  function workbookUrl(settings2) {
+    const custom = (settings2.fileUrl ?? "").trim();
+    if (custom) return custom;
+    const path = settings2.diskPath.replace(/^disk:/i, "").replace(/^\/+/, "");
+    return "https://disk.yandex.ru/client/disk/" + path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  }
   var DEFAULT_TASK_TYPES = [
     { code: "\u0423", description: "\u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0447\u0435\u0441\u043A\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
     { code: "\u0420", description: "\u0440\u0443\u0442\u0438\u043D\u0430, \u0440\u044F\u0434\u043E\u0432\u044B\u0435 \u0440\u0430\u0431\u043E\u0447\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
@@ -11,7 +17,7 @@
     { code: "\u041A\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438 \u041A\u0440\u0438\u0441\u0442\u0430\u041A\u043E\u043C\u0430\u043D\u0434\u044B (\u0442\u0440\u0435\u043D\u0438\u043D\u0433\u0438 \u0432 \u043D\u0430\u0448\u0435\u0439 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438, \u0432\u044B\u0435\u0437\u0434\u043D\u044B\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F \u0438 \u0442.\u043F.)" }
   ];
   var DEFAULT_REMINDERS = { enabled: true, from: "09:00", to: "18:00", every: 1, unit: "hours" };
-  var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES, reminders: DEFAULT_REMINDERS };
+  var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES, reminders: DEFAULT_REMINDERS, fileUrl: "" };
   var POPUP_SIZE = { minWidth: 320, minHeight: 460, maxWidth: 800, maxHeight: 600 };
   var DEFAULT_POPUP_SIZE = { width: 720, height: 600 };
 
@@ -55,6 +61,7 @@
       tasksToShow: Number.isFinite(tasks) && tasks > 0 ? Math.floor(tasks) : DEFAULT_SETTINGS.tasksToShow,
       daysToShow: Number.isFinite(days2) && days2 > 0 ? Math.floor(days2) : DEFAULT_SETTINGS.daysToShow,
       diskPath: typeof s.diskPath === "string" && s.diskPath.trim() ? s.diskPath : DEFAULT_SETTINGS.diskPath,
+      fileUrl: typeof s.fileUrl === "string" ? s.fileUrl.trim() : "",
       taskTypes: Array.isArray(s.taskTypes) && s.taskTypes.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes.map((x) => ({ ...x })),
       reminders: normalizeReminders(s.reminders)
     };
@@ -33854,6 +33861,8 @@
   var adding = false;
   var popupSize = { ...DEFAULT_POPUP_SIZE };
   var scheduledAt = null;
+  var selectedType = "";
+  var TYPE_CHIPS_LIMIT = 10;
   var retrying = /* @__PURE__ */ new Set();
   var $2 = (id) => document.getElementById(id);
   var input = (id) => $2(id);
@@ -33866,6 +33875,14 @@
   function openSettings() {
     runtimeApi()?.openOptionsPage?.();
   }
+  function openWorkbook() {
+    const api2 = extensionApi(), url = workbookUrl(settings);
+    if (api2?.tabs?.create) {
+      void api2.tabs.create({ url });
+      return;
+    }
+    window.open(url, "_blank");
+  }
   function openAnalytics() {
     const api2 = extensionApi();
     const url = api2?.runtime?.getURL?.("analytics.html") ?? "analytics.html";
@@ -33876,8 +33893,9 @@
     window.open(url, "_blank");
   }
   function bind() {
-    if (!$2("refresh") || !$2("add") || !$2("openSettings") || !$2("openAnalytics")) throw new Error("\u0418\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441 popup \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E.");
+    if (!$2("refresh") || !$2("add") || !$2("openSettings") || !$2("openAnalytics") || !$2("openFile") || !$2("typeChips")) throw new Error("\u0418\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441 popup \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E.");
     $2("refresh").onclick = () => void refresh();
+    $2("openFile").onclick = () => openWorkbook();
     $2("openSettings").onclick = () => openSettings();
     $2("openAnalytics").onclick = () => openAnalytics();
     $2("add").onclick = () => void addCurrentTask();
@@ -33987,7 +34005,7 @@
     try {
       settings = await getSettings();
       pending = await getPendingTasks();
-      renderSettings();
+      renderTypes();
       setDifficulty(0);
       renderSchedule();
       await refresh();
@@ -34075,7 +34093,7 @@
       const moment = scheduledMoment(), date2 = localDate(moment), file = input("attachment").files?.[0];
       const suffix = file ? "_" + crypto.randomUUID().replace(/-/g, "").slice(0, 5) : "";
       const target = file ? file.name.replace(/(\.[^.]+)?$/, suffix + "$1") : void 0;
-      const task = { id: crypto.randomUUID(), date: date2, time: localTime(moment), weekday: weekdayOf(moment), partOfDay: partOfDay(moment.getHours()), taskType: $2("type").value, task: text, difficulty: selectedDifficulty(), attachmentFolder: file ? attachmentFolder(settings, date2) : void 0, attachmentName: target };
+      const task = { id: crypto.randomUUID(), date: date2, time: localTime(moment), weekday: weekdayOf(moment), partOfDay: partOfDay(moment.getHours()), taskType: selectedType, task: text, difficulty: selectedDifficulty(), attachmentFolder: file ? attachmentFolder(settings, date2) : void 0, attachmentName: target };
       const item = { task, attachment: file ? { name: file.name, type: file.type, data: await file.arrayBuffer() } : void 0, createdAt: `${Date.now()}-${crypto.randomUUID()}` };
       pending.push(item);
       try {
@@ -34122,15 +34140,56 @@
     input("attachment").value = "";
     $2("attachmentName").textContent = "";
   }
-  function renderSettings() {
-    const s = $2("type");
-    s.innerHTML = "";
-    settings.taskTypes.forEach((t) => {
-      const o = document.createElement("option");
-      o.value = t.code;
-      o.textContent = t.code;
-      s.append(o);
+  function selectType(code) {
+    selectedType = code;
+    syncTypeSelection();
+  }
+  function syncTypeSelection() {
+    [...$2("typeChips").querySelectorAll("button")].forEach((button) => {
+      const active = button.dataset.code === selectedType;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
     });
+    const more = $2("typeMore");
+    if (!more.hidden && ![...more.options].some((option) => option.value === selectedType)) more.value = "";
+  }
+  function renderTypes() {
+    const chips = $2("typeChips");
+    const more = $2("typeMore");
+    const types = settings.taskTypes;
+    chips.innerHTML = "";
+    more.innerHTML = "";
+    types.slice(0, TYPE_CHIPS_LIMIT).forEach((t) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "chip";
+      button.textContent = t.code;
+      button.dataset.code = t.code;
+      button.setAttribute("aria-pressed", "false");
+      if (t.description) button.title = t.description;
+      button.onclick = () => selectType(t.code);
+      chips.append(button);
+    });
+    const rest = types.slice(TYPE_CHIPS_LIMIT);
+    more.hidden = rest.length === 0;
+    if (rest.length) {
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = `\u0435\u0449\u0451 ${rest.length} \u25BE`;
+      more.append(placeholder);
+      rest.forEach((t) => {
+        const option = document.createElement("option");
+        option.value = t.code;
+        option.textContent = t.code;
+        if (t.description) option.title = t.description;
+        more.append(option);
+      });
+      more.onchange = () => {
+        if (more.value) selectType(more.value);
+      };
+    }
+    if (!types.some((t) => t.code === selectedType)) selectedType = types[0]?.code ?? "";
+    syncTypeSelection();
   }
   function renderRecords() {
     const root = $2("records");

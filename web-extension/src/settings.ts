@@ -1,5 +1,6 @@
 import type {AppSettings,ReminderSettings} from "./model.js";
 import {clearLocalData,getSettings,saveSettings} from "./storage.js";
+import {isHttpUrl} from "./model.js";
 import {connectToYandex,testConnection} from "./yandex.js";
 import {notificationPermission,reminderSummary,showReminder,syncReminderAlarm} from "./reminders.js";
 
@@ -36,6 +37,7 @@ function syncTypesFromDom(){if(!settings)return;settings.taskTypes=Array.from(do
 
 function render(){
   input("diskPath").value=settings.diskPath;
+  input("fileUrl").value=settings.fileUrl??"";
   const n=settings.displayMode==="tasks"?settings.tasksToShow:settings.daysToShow;
   input("tasks").value=String(n);
   input("modeTasks").checked=settings.displayMode==="tasks";
@@ -99,17 +101,19 @@ function collectSettings():AppSettings{
   syncDisplayValue();
   syncTypesFromDom();
   const diskPath=input("diskPath").value.trim();
+  const fileUrl=input("fileUrl")?.value.trim()??"";
   const tasksToShow=Math.max(1,Number(input("tasks").value)||10);
   const daysToShow=Math.max(1,settings.daysToShow||2);
   const displayMode=input("modeDays").checked?"days":"tasks";
   const taskTypes=settings.taskTypes.map(t=>({code:t.code.trim(),description:t.description.trim()}));
   const reminders=remindersFromForm();
   if(!diskPath)throw new Error("Укажите полный путь к XLSX.");
+  if(fileUrl&&!isHttpUrl(fileUrl))throw new Error("Ссылка на файл должна начинаться с http:// или https://.");
   if(!taskTypes.length)throw new Error("Добавьте хотя бы один тип задачи.");
   if(taskTypes.some(t=>!t.code))throw new Error("У каждого типа задачи должен быть указан код.");
   const codes=taskTypes.map(t=>t.code.toLocaleLowerCase());
   if(new Set(codes).size!==codes.length)throw new Error("Коды типов задач не должны повторяться.");
-  return {displayMode,tasksToShow:displayMode==="tasks"?tasksToShow:settings.tasksToShow,daysToShow:displayMode==="days"?tasksToShow:daysToShow,diskPath,taskTypes,reminders};
+  return {displayMode,tasksToShow:displayMode==="tasks"?tasksToShow:settings.tasksToShow,daysToShow:displayMode==="days"?tasksToShow:daysToShow,diskPath,taskTypes,reminders,fileUrl};
 }
 
 async function clearCache(){

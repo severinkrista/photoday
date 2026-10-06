@@ -3,7 +3,7 @@ import {
   Legend,LineController,LineElement,LinearScale,PieController,PointElement,Title,Tooltip
 } from "chart.js";
 import type {AppSettings,TaskRecord} from "./model.js";
-import {DEFAULT_SETTINGS} from "./model.js";
+import {DEFAULT_SETTINGS,workbookUrl} from "./model.js";
 import {getPendingTasks,getSettings,getToken} from "./storage.js";
 import {getTasks} from "./repository.js";
 import {WEEKDAYS,displayDate} from "./datetime.js";
@@ -628,6 +628,11 @@ function resetFilters(){
 async function init(){
   settings=await getSettings();
   $("openSettings").onclick=()=>runtimeApi()?.runtime?.openOptionsPage?.();
+  $("openFile").onclick=()=>{
+    const api=runtimeApi(),url=workbookUrl(settings);
+    if(api?.tabs?.create){void api.tabs.create({url});return;}
+    window.open(url,"_blank");
+  };
   $("refresh").onclick=()=>void load();
   $("exportCsv").onclick=()=>downloadCsv();
   $("resetFilters").onclick=()=>resetFilters();
