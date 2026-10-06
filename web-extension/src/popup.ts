@@ -1,6 +1,6 @@
 import type {AppSettings,PendingTask,TaskRecord} from "./model.js";
 import {DEFAULT_SETTINGS} from "./model.js";
-import {getPendingTasks,getSettings,getToken,savePendingTasks} from "./storage.js";
+import {consumeAddEntry,getPendingTasks,getSettings,getToken,savePendingTasks} from "./storage.js";
 import {addTask,getAttachment,getTasks} from "./repository.js";
 import {attachmentFolder} from "./yandex.js";
 import {formatDateTime,localDate,localTime,momentLabel,parseLocalDateTime,partOfDay,weekdayOf} from "./datetime.js";
@@ -29,6 +29,18 @@ function bind(){
   $("scheduleDone").onclick=()=>toggleSchedule(false);
   input("scheduleDate").addEventListener("change",scheduleFromInputs);
   input("scheduleTime").addEventListener("change",scheduleFromInputs);
+}
+
+/** Открытие по кнопке «ОК» в напоминании: окно больше и сразу встаёт в поле описания задачи. */
+async function applyEntryMode(){
+  const params=new URLSearchParams(location.search);
+  // Флаг читаем всегда, чтобы он не «залипал» на следующее обычное открытие.
+  const flagged=await consumeAddEntry();
+  const fromNotification=params.get("new")==="1"||flagged;
+  if(!fromNotification)return;
+  document.body.classList.add("expanded");
+  document.querySelector(".add-card")?.scrollIntoView?.({block:"start"});
+  input("task").focus();
 }
 
 async function init(){try{settings=await getSettings();pending=await getPendingTasks();renderSettings();setDifficulty(0);renderSchedule();await refresh();}catch(e){showError(e);}}
@@ -180,4 +192,5 @@ function showNotice(text:string){$("notice").textContent=text;$("notice").hidden
 function localDateObject(s:string){const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3])):new Date(s);}
 
 bind();
+void applyEntryMode();
 void init();

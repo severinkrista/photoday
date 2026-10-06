@@ -22,6 +22,7 @@ UI -> repository -> платформенные adapters -> Яндекс Диск
 - типы задач;
 - сложность 0–5;
 - изображения-вложения;
+- напоминания: диапазон времени и частота уведомлений;
 - очередь неотправленных записей;
 - повторную отправку и отмену;
 - проверку подключения, XLSX и папки вложений;
@@ -43,5 +44,5 @@ Android:
 Браузерное расширение:
 
 - `cd web-extension && npm install && npm run build` (TypeScript + esbuild);
-- собранные `popup.js`, `settings.js`, `viewer.js` в корне `web-extension` коммитятся,
-  их пересобирает workflow `.github/workflows/web-extension-build.yml`.
+- собранные `popup.js`, `settings.js`, `viewer.js`, `background.js` в корне `web-extension`
+  коммитятся, их пересобирает workflow `.github/workflows/web-extension-build.yml`.

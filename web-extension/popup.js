@@ -10,7 +10,8 @@
     { code: "\u0413\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438, \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0435 \u0441 \u0433\u043E\u0441\u0443\u0434\u0430\u0440\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u043C\u0438 \u043A\u043E\u043D\u043A\u0442\u0440\u0430\u043A\u0442\u0430\u043C\u0438" },
     { code: "\u041A\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438 \u041A\u0440\u0438\u0441\u0442\u0430\u041A\u043E\u043C\u0430\u043D\u0434\u044B (\u0442\u0440\u0435\u043D\u0438\u043D\u0433\u0438 \u0432 \u043D\u0430\u0448\u0435\u0439 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438, \u0432\u044B\u0435\u0437\u0434\u043D\u044B\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F \u0438 \u0442.\u043F.)" }
   ];
-  var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES };
+  var DEFAULT_REMINDERS = { enabled: true, from: "09:00", to: "18:00", every: 1, unit: "hours" };
+  var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES, reminders: DEFAULT_REMINDERS };
 
   // src/storage.ts
   var storage = globalThis.browser?.storage?.local ?? globalThis.chrome?.storage?.local;
@@ -52,8 +53,52 @@
       tasksToShow: Number.isFinite(tasks) && tasks > 0 ? Math.floor(tasks) : DEFAULT_SETTINGS.tasksToShow,
       daysToShow: Number.isFinite(days2) && days2 > 0 ? Math.floor(days2) : DEFAULT_SETTINGS.daysToShow,
       diskPath: typeof s.diskPath === "string" && s.diskPath.trim() ? s.diskPath : DEFAULT_SETTINGS.diskPath,
-      taskTypes: Array.isArray(s.taskTypes) && s.taskTypes.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes.map((x) => ({ ...x }))
+      taskTypes: Array.isArray(s.taskTypes) && s.taskTypes.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes.map((x) => ({ ...x })),
+      reminders: normalizeReminders(s.reminders)
     };
+  }
+  function normalizeReminders(value) {
+    const clock = (v, fallback) => typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v.trim()) ? v.trim() : fallback;
+    const unit = value?.unit === "minutes" ? "minutes" : "hours";
+    const rawEvery = Number(value?.every);
+    const limit = unit === "minutes" ? 1440 : 24;
+    const every = Number.isFinite(rawEvery) && rawEvery >= 1 ? Math.min(Math.floor(rawEvery), limit) : DEFAULT_REMINDERS.every;
+    return {
+      enabled: typeof value?.enabled === "boolean" ? value.enabled : DEFAULT_REMINDERS.enabled,
+      from: clock(value?.from, DEFAULT_REMINDERS.from),
+      to: clock(value?.to, DEFAULT_REMINDERS.to),
+      every,
+      unit
+    };
+  }
+  var ADD_ENTRY_KEY = "photodayAddEntry";
+  var ADD_ENTRY_TTL = 2 * 6e4;
+  function sessionArea() {
+    const scope = globalThis;
+    return (scope.browser ?? scope.chrome)?.storage?.session ?? null;
+  }
+  async function consumeAddEntry() {
+    const session = sessionArea();
+    if (session?.get) {
+      try {
+        const stored = await session.get(ADD_ENTRY_KEY);
+        const value = Number(stored?.[ADD_ENTRY_KEY]);
+        if (value) {
+          await session.remove(ADD_ENTRY_KEY);
+          return Date.now() - value <= ADD_ENTRY_TTL;
+        }
+      } catch (e) {
+      }
+    }
+    try {
+      const fallback = Number(await get(ADD_ENTRY_KEY, 0));
+      if (fallback) {
+        await set(ADD_ENTRY_KEY, 0);
+        return Date.now() - fallback <= ADD_ENTRY_TTL;
+      }
+    } catch (e) {
+    }
+    return false;
   }
   async function getToken() {
     return get("token", null);
@@ -33825,6 +33870,15 @@
     input("scheduleDate").addEventListener("change", scheduleFromInputs);
     input("scheduleTime").addEventListener("change", scheduleFromInputs);
   }
+  async function applyEntryMode() {
+    const params = new URLSearchParams(location.search);
+    const flagged = await consumeAddEntry();
+    const fromNotification = params.get("new") === "1" || flagged;
+    if (!fromNotification) return;
+    document.body.classList.add("expanded");
+    document.querySelector(".add-card")?.scrollIntoView?.({ block: "start" });
+    input("task").focus();
+  }
   async function init() {
     try {
       settings = await getSettings();
@@ -34040,6 +34094,7 @@
     return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
   }
   bind();
+  void applyEntryMode();
   void init();
 })();
 /*! Bundled license information:

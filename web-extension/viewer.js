@@ -10,6 +10,7 @@
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
   }
+  var ADD_ENTRY_TTL = 2 * 6e4;
   async function getToken() {
     return get("token", null);
   }
