@@ -20,8 +20,6 @@
     <div class="row types-row">
       <div id="typeChips" class="type-chips" role="group" aria-label="Вид задачи"></div>
       <select id="typeMore" class="type-more" aria-label="Остальные виды задач" hidden></select>
-    </div>
-    <div class="row">
       <div class="difficulty-picker" aria-label="Сложность от 1 до 5">
         <button id="difficulty-1" type="button" aria-label="1 звезда">★</button>
         <button id="difficulty-2" type="button" aria-label="2 звезды">★</button>
@@ -29,10 +27,18 @@
         <button id="difficulty-4" type="button" aria-label="4 звезды">★</button>
         <button id="difficulty-5" type="button" aria-label="5 звезд">★</button>
       </div>
+    </div>
+    <textarea id="task" rows="3" placeholder="Описание задачи"></textarea>
+    <div class="compose-actions">
+      <button id="add" class="primary">Сохранить</button>
       <button id="scheduleToggle" type="button" class="schedule-toggle" aria-expanded="false" aria-controls="scheduleEditor"
         aria-label="Дата и время записи" title="Дата и время записи. По умолчанию — текущий момент.">
         <span aria-hidden="true">🗓</span><strong id="scheduleValue">сейчас</strong>
       </button>
+      <label class="file" title="Прикрепить фото или скриншот">
+        <input id="attachment" type="file" accept="image/*" aria-label="Прикрепить фото или скриншот">
+        <span aria-hidden="true">＋</span> Фото<span id="attachmentName" class="muted"></span>
+      </label>
     </div>
     <div id="scheduleEditor" class="schedule-editor" hidden>
       <div class="schedule-grid">
@@ -46,14 +52,6 @@
         <button id="scheduleDone" type="button" class="primary">Готово</button>
       </div>
       <div class="muted">Задним числом: укажите прошедшие дату и время — запись уйдёт в таблицу с этой отметкой.</div>
-    </div>
-    <textarea id="task" rows="3" placeholder="Описание задачи"></textarea>
-    <div class="compose-actions">
-      <button id="add" class="primary">Сохранить</button>
-      <label class="file" title="Прикрепить фото или скриншот">
-        <input id="attachment" type="file" accept="image/*" aria-label="Прикрепить фото или скриншот">
-        <span aria-hidden="true">＋</span> Фото<span id="attachmentName" class="muted"></span>
-      </label>
     </div>
   </section>
   <div class="records-heading"><strong>Предыдущие задачи</strong><span id="recordsCount" class="muted"></span></div>
