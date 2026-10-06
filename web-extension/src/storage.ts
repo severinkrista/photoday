@@ -1,4 +1,4 @@
-import type {AppSettings,PendingTask,PopupSize,ReminderSettings} from "./model.js"; import {DEFAULT_SETTINGS,DEFAULT_REMINDERS,POPUP_SIZE} from "./model.js";
+import type {AppSettings,PendingTask,PopupSize,ReminderEvent,ReminderSettings} from "./model.js"; import {DEFAULT_SETTINGS,DEFAULT_REMINDERS,POPUP_SIZE} from "./model.js";
 const storage=(globalThis as any).browser?.storage?.local ?? (globalThis as any).chrome?.storage?.local;
 type StoredPendingTask=Omit<PendingTask,"attachment"> & {attachment?:{name:string;type:string;data:string}};
 function toBase64(data:ArrayBuffer){let binary="";const bytes=new Uint8Array(data);const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+chunk,bytes.length)));return btoa(binary);}
@@ -35,6 +35,8 @@ export function normalizeReminders(value?:Partial<ReminderSettings>|null):Remind
  };
 }
 const ADD_ENTRY_KEY="photodayAddEntry";
+/** Ключ журнала напоминаний: что случилось с последним уведомлением. */
+export const REMINDER_EVENT_KEY="reminderEvent";
 /** Флаг «попап открыт из напоминания» живёт недолго: если окно так и не открылось, режим не должен «залипать». */
 const ADD_ENTRY_TTL=2*60_000;
 function sessionArea():any{
@@ -86,3 +88,7 @@ export async function getPopupSize():Promise<PopupSize|null>{
  try{return normalizePopupSize(await get<Partial<PopupSize>|null>(POPUP_SIZE_KEY,null));}catch(e){return null;}
 }
 export async function savePopupSize(size:PopupSize){const clean=normalizePopupSize(size);if(clean)await set(POPUP_SIZE_KEY,clean);}
+
+/** Последнее событие напоминания: показ, нажатие кнопки, закрытие. Используется для диагностики. */
+export async function saveReminderEvent(event:ReminderEvent){await set(REMINDER_EVENT_KEY,event);}
+export async function getReminderEvent():Promise<ReminderEvent|null>{return get<ReminderEvent|null>(REMINDER_EVENT_KEY,null);}

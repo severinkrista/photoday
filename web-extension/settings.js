@@ -62,6 +62,7 @@
       unit
     };
   }
+  var REMINDER_EVENT_KEY = "reminderEvent";
   var ADD_ENTRY_TTL = 2 * 6e4;
   async function clearLocalData() {
     if (storage) {
@@ -78,6 +79,12 @@
   }
   async function saveToken(t) {
     await set("token", t);
+  }
+  async function saveReminderEvent(event) {
+    await set(REMINDER_EVENT_KEY, event);
+  }
+  async function getReminderEvent() {
+    return get(REMINDER_EVENT_KEY, null);
   }
 
   // src/yandex.ts
@@ -148,9 +155,24 @@
   // src/reminders.ts
   var REMINDER_ALARM = "photoday-reminder";
   var REMINDER_NOTIFICATION = "photoday-reminder";
+  function isReminderNotification(id) {
+    return String(id ?? "").startsWith(REMINDER_NOTIFICATION);
+  }
+  var NOTIFICATION_BUTTONS = [{ title: "\u041E\u041A" }, { title: "\u041E\u0442\u043C\u0435\u043D\u0430" }];
   function extensionApi() {
     const scope = globalThis;
     return scope.browser ?? scope.chrome ?? null;
+  }
+  function errorText(error) {
+    if (error instanceof Error) return error.message;
+    const text = String(error ?? "");
+    return text && text !== "undefined" ? text : "\u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430";
+  }
+  function trace(message, ...details) {
+    try {
+      console.info("[photoday] " + message, ...details);
+    } catch (e) {
+    }
   }
   function periodMinutes(reminders) {
     const every = Math.max(1, Math.floor(reminders.every || 1));
@@ -176,6 +198,16 @@
     await Promise.resolve(api2.alarms.clear(REMINDER_ALARM)).catch(() => void 0);
     api2.alarms.create(REMINDER_ALARM, { delayInMinutes: period, periodInMinutes: period });
   }
+  async function platformOs() {
+    const api2 = extensionApi();
+    if (!api2?.runtime?.getPlatformInfo) return "";
+    try {
+      const info = await Promise.resolve(api2.runtime.getPlatformInfo());
+      return String(info?.os ?? "");
+    } catch (e) {
+      return "";
+    }
+  }
   async function notificationPermission() {
     const api2 = extensionApi();
     if (!api2?.notifications?.getPermissionLevel) return "granted";
@@ -186,29 +218,45 @@
       return "granted";
     }
   }
+  async function activeReminderNotifications() {
+    const api2 = extensionApi();
+    if (!api2?.notifications?.getAll) return null;
+    try {
+      const all = await Promise.resolve(api2.notifications.getAll());
+      return Object.keys(all ?? {}).filter(isReminderNotification).length;
+    } catch (e) {
+      return null;
+    }
+  }
   async function showReminder() {
     const api2 = extensionApi();
     if (!api2?.notifications) throw new Error("\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0432 \u044D\u0442\u043E\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.");
+    const id = `${REMINDER_NOTIFICATION}-${Date.now()}`;
+    const holdOnScreen = await platformOs() !== "mac";
     const iconUrl = api2.runtime?.getURL ? api2.runtime.getURL("icons/icon128.png") : "icons/icon128.png";
     await new Promise((resolve) => {
       try {
-        api2.notifications.create(REMINDER_NOTIFICATION, {
+        api2.notifications.create(id, {
           type: "basic",
           iconUrl,
           title: "\u0424\u043E\u0442\u043E \u0434\u043D\u044F",
           message: "\u041E\u043F\u0438\u0448\u0438\u0442\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438, \u043F\u043E\u043A\u0430 \u043D\u0435 \u0437\u0430\u0431\u044B\u043B\u0438, \u0447\u0442\u043E \u0431\u044B\u043B\u043E \u0441\u0434\u0435\u043B\u0430\u043D\u043E.",
-          contextMessage: "\xAB\u041E\u041A\xBB \u2014 \u043E\u0442\u043A\u0440\u044B\u0442\u044C \u0444\u043E\u0440\u043C\u0443 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438.",
-          buttons: [{ title: "\u041E\u041A" }, { title: "\u041E\u0442\u043C\u0435\u043D\u0430" }],
-          requireInteraction: true,
+          contextMessage: "\xAB\u041E\u041A\xBB \u2014 \u0444\u043E\u0440\u043C\u0430 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438; \u043C\u043E\u0436\u043D\u043E \u043F\u0440\u043E\u0441\u0442\u043E \u043D\u0430\u0436\u0430\u0442\u044C \u043D\u0430 \u044D\u0442\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435.",
+          buttons: NOTIFICATION_BUTTONS,
+          requireInteraction: holdOnScreen,
           priority: 2
         }, () => {
           void api2.runtime?.lastError;
           resolve();
         });
       } catch (e) {
+        trace("\u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435", errorText(e));
         resolve();
       }
     });
+    trace("\u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435", id);
+    await saveReminderEvent({ kind: "shown", at: Date.now(), notificationId: id, action: "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E, \u0436\u0434\u0451\u043C \u043D\u0430\u0436\u0430\u0442\u0438\u044F." });
+    return id;
   }
 
   // src/settings.ts
@@ -233,6 +281,13 @@
         render();
       });
       bindClick("testReminder", () => void testReminder());
+      window.addEventListener("focus", () => void renderNotificationDiagnostics());
+      try {
+        extensionApi()?.storage?.onChanged?.addListener((changes) => {
+          if (changes && REMINDER_EVENT_KEY in changes) void renderNotificationDiagnostics();
+        });
+      } catch (e) {
+      }
       $("modeTasks").onchange = () => {
         syncDisplayValue();
         syncTypesFromDom();
@@ -295,6 +350,33 @@
       root.append(row);
     });
     renderReminders();
+    void renderNotificationDiagnostics();
+  }
+  function describeEvent(event) {
+    if (!event) return "\u0421\u043E\u0431\u044B\u0442\u0438\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435 \u0431\u044B\u043B\u043E.";
+    const time = new Date(event.at).toLocaleTimeString();
+    const what = event.kind === "button" ? `\u043D\u0430\u0436\u0430\u0442\u0430 \u043A\u043D\u043E\u043F\u043A\u0430 \xAB${event.button}\xBB` : event.kind === "body" ? "\u043D\u0430\u0436\u0430\u0442\u043E \u0441\u0430\u043C\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435" : event.kind === "closed" ? "\u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E" : "\u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E";
+    return `${time} \u2014 ${what}. ${event.action}${event.error ? " \u041F\u0440\u0438\u0447\u0438\u043D\u0430: " + event.error + "." : ""}`;
+  }
+  var diagnosticsTimer;
+  function scheduleDiagnosticsRefresh(event) {
+    if (diagnosticsTimer !== void 0) clearTimeout(diagnosticsTimer);
+    if (event?.kind !== "shown") return;
+    const wait = Math.max(0, 5e3 - (Date.now() - event.at)) + 300;
+    diagnosticsTimer = window.setTimeout(() => void renderNotificationDiagnostics(), wait);
+  }
+  async function renderNotificationDiagnostics() {
+    const box = $("notificationDiag");
+    if (!box) return;
+    const level = await notificationPermission();
+    const active = await activeReminderNotifications();
+    const event = await getReminderEvent();
+    const permission = level === "granted" ? "\u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u0435 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430 \u0432\u044B\u0434\u0430\u043D\u043E" : level === "denied" ? "\u0431\u0440\u0430\u0443\u0437\u0435\u0440 \u0437\u0430\u043F\u0440\u0435\u0442\u0438\u043B \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F" : "\u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u0435 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430 \u043D\u0435 \u0432\u044B\u0434\u0430\u043D\u043E";
+    const shown = active === null ? "" : ` \u0421\u0435\u0439\u0447\u0430\u0441 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0439: ${active}.`;
+    const stuck = event?.kind === "shown" && Date.now() - event.at > 5e3;
+    const hint = stuck ? " \u041D\u0430\u0436\u0430\u0442\u0438\u0435 \u043A\u043D\u043E\u043F\u043A\u0438 \u0434\u043E \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F \u043D\u0435 \u0434\u043E\u0448\u043B\u043E: \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u0441\u0430\u043C\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u2014 \u0444\u043E\u0440\u043C\u0430 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438 \u043E\u0442\u043A\u0440\u043E\u0435\u0442\u0441\u044F. \u041D\u0430 macOS \u043A\u043D\u043E\u043F\u043A\u0438 \u0431\u044B\u0432\u0430\u044E\u0442 \u0432\u0438\u0434\u043D\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u0438 \u0441\u0442\u0438\u043B\u0435 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0439 \xAB\u041E\u043F\u043E\u0432\u0435\u0449\u0435\u043D\u0438\u044F\xBB." : "";
+    box.textContent = `${permission}.${shown} \u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0435\u0435 \u0441\u043E\u0431\u044B\u0442\u0438\u0435: ${describeEvent(event)}${hint}`;
+    scheduleDiagnosticsRefresh(event);
   }
   function renderReminders() {
     const r = settings.reminders;
@@ -383,7 +465,8 @@
         return;
       }
       await showReminder();
-      $("reminderStatus").textContent = "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E. \xAB\u041E\u041A\xBB \u043E\u0442\u043A\u0440\u043E\u0435\u0442 \u0444\u043E\u0440\u043C\u0443 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438, \xAB\u041E\u0442\u043C\u0435\u043D\u0430\xBB \u043D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u043E\u0442\u043A\u0440\u043E\u0435\u0442.";
+      $("reminderStatus").textContent = "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E. \xAB\u041E\u041A\xBB \u043E\u0442\u043A\u0440\u043E\u0435\u0442 \u0444\u043E\u0440\u043C\u0443 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438, \xAB\u041E\u0442\u043C\u0435\u043D\u0430\xBB \u043F\u0440\u043E\u0441\u0442\u043E \u0437\u0430\u043A\u0440\u043E\u0435\u0442 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435.";
+      await renderNotificationDiagnostics();
     } catch (e) {
       $("reminderStatus").textContent = "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435: " + (e instanceof Error ? e.message : String(e));
     } finally {

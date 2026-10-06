@@ -20,4 +20,15 @@ export interface PopupSize { width:number; height:number; }
 /** Допустимые границы окна плагина: снизу — чтобы содержимое осталось читаемым, сверху — предел popup в Chrome (800×600). */
 export const POPUP_SIZE={minWidth:320,minHeight:460,maxWidth:800,maxHeight:600};
 export const DEFAULT_POPUP_SIZE:PopupSize={width:720,height:600};
+/** Что произошло с напоминанием: показ, нажатие кнопки, клик по уведомлению или закрытие. */
+export interface ReminderEvent {
+ kind:"shown"|"button"|"body"|"closed";
+ at:number;
+ notificationId?:string;
+ button?:string;
+ index?:number;
+ opened?:"popup"|"window"|"tab"|"none";
+ error?:string;
+ action:string;
+}
 export interface PendingTask { task:TaskRecord; attachment?:{name:string;type:string;data:ArrayBuffer}; createdAt:number|string; }

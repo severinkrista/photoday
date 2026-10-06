@@ -1,6 +1,10 @@
-import {REMINDER_NOTIFICATION,extensionApi,handleReminderAlarm,openAddWindow,syncReminderAlarm} from "./reminders.js";
+import {
+  extensionApi,handleNotificationButton,handleNotificationClick,handleNotificationClosed,
+  handleReminderAlarm,syncReminderAlarm
+} from "./reminders.js";
 
-// Service worker расширения: следит за будильником напоминаний и реакцией на уведомление.
+// Service worker расширения: будильник напоминаний и реакция на уведомление.
+// Все слушатели регистрируются синхронно при запуске службы — иначе Chrome не разбудит её событием.
 const api=extensionApi();
 
 if(api){
@@ -8,16 +12,8 @@ if(api){
   api.runtime?.onInstalled?.addListener(()=>{ void syncReminderAlarm(); });
   api.runtime?.onStartup?.addListener(()=>{ void syncReminderAlarm(); });
   api.alarms?.onAlarm?.addListener((alarm:{name?:string})=>{ void handleReminderAlarm(String(alarm?.name??"")); });
-  api.notifications?.onButtonClicked?.addListener((id:string,index:number)=>{
-    if(id!==REMINDER_NOTIFICATION)return;
-    void Promise.resolve(api.notifications.clear(id)).catch(()=>undefined);
-    // Кнопка «ОК» открывает форму новой записи, «Отмена» ничего не открывает.
-    if(index===0)void openAddWindow();
-  });
-  api.notifications?.onClicked?.addListener((id:string)=>{
-    if(id!==REMINDER_NOTIFICATION)return;
-    void Promise.resolve(api.notifications.clear(id)).catch(()=>undefined);
-    void openAddWindow();
-  });
+  api.notifications?.onButtonClicked?.addListener((id:string,index:number)=>{ void handleNotificationButton(String(id??""),Number(index)||0); });
+  api.notifications?.onClicked?.addListener((id:string)=>{ void handleNotificationClick(String(id??"")); });
+  api.notifications?.onClosed?.addListener((id:string,byUser:boolean)=>{ void handleNotificationClosed(String(id??""),Boolean(byUser)); });
   void syncReminderAlarm();
 }

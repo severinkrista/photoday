@@ -1,8 +1,9 @@
-import type {AppSettings,ReminderSettings} from "./model.js";
-import {clearLocalData,getSettings,saveSettings} from "./storage.js";
+import type {AppSettings,ReminderEvent,ReminderSettings} from "./model.js";
+import {clearLocalData,getReminderEvent,getSettings,saveSettings} from "./storage.js";
 import {isHttpUrl} from "./model.js";
 import {connectToYandex,testConnection} from "./yandex.js";
-import {notificationPermission,reminderSummary,showReminder,syncReminderAlarm} from "./reminders.js";
+import {activeReminderNotifications,extensionApi,notificationPermission,reminderSummary,showReminder,syncReminderAlarm} from "./reminders.js";
+import {REMINDER_EVENT_KEY} from "./storage.js";
 
 let settings:AppSettings;
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
@@ -20,6 +21,13 @@ async function init(){
     bindClick("clearCache",()=>void clearCache());
     bindClick("addType",()=>{syncTypesFromDom();settings.taskTypes.push({code:"Новый",description:""});render();});
     bindClick("testReminder",()=>void testReminder());
+    // Сведения о напоминании обновляем при возврате на страницу: нажатие кнопки в уведомлении
+    // обрабатывает служебный процесс, поэтому результат появляется здесь с задержкой.
+    window.addEventListener("focus",()=>void renderNotificationDiagnostics());
+    // Нажатие кнопки в уведомлении обрабатывает служебный процесс: о результате узнаём из хранилища.
+    try{extensionApi()?.storage?.onChanged?.addListener((changes:Record<string,unknown>)=>{
+      if(changes&&REMINDER_EVENT_KEY in changes)void renderNotificationDiagnostics();
+    });}catch(e){/* подписка недоступна — сведения обновятся при возврате на страницу */}
     $("modeTasks").onchange=()=>{syncDisplayValue();syncTypesFromDom();settings.displayMode="tasks";render();};
     $("modeDays").onchange=()=>{syncDisplayValue();syncTypesFromDom();settings.displayMode="days";render();};
     for(const id of ["remindersEnabled","remindersFrom","remindersTo","remindersEvery","remindersUnit"]){
@@ -62,6 +70,50 @@ function render(){
     root.append(row);
   });
   renderReminders();
+  void renderNotificationDiagnostics();
+}
+
+/** Человекочитаемое описание последнего события напоминания. */
+function describeEvent(event:ReminderEvent|null):string{
+  if(!event)return "Событий пока не было.";
+  const time=new Date(event.at).toLocaleTimeString();
+  const what=event.kind==="button"?`нажата кнопка «${event.button}»`
+    :event.kind==="body"?"нажато само уведомление"
+    :event.kind==="closed"?"уведомление закрыто"
+    :"уведомление показано";
+  return `${time} — ${what}. ${event.action}${event.error?" Причина: "+event.error+".":""}`;
+}
+
+/**
+ * Сведения о напоминаниях: разрешение браузера, сколько уведомлений висит и что случилось
+ * с последним. Если после нажатия «ОК» записи о кнопке нет — значит браузер не передал
+ * нажатие расширению, и причину нужно искать в системных настройках уведомлений.
+ */
+let diagnosticsTimer:number|undefined;
+/** Перечитывает сведения о напоминании через несколько секунд после показа: подсказка о непришедшем нажатии. */
+function scheduleDiagnosticsRefresh(event:ReminderEvent|null){
+  if(diagnosticsTimer!==undefined)clearTimeout(diagnosticsTimer);
+  if(event?.kind!=="shown")return;
+  const wait=Math.max(0,5000-(Date.now()-event.at))+300;
+  diagnosticsTimer=window.setTimeout(()=>void renderNotificationDiagnostics(),wait);
+}
+
+async function renderNotificationDiagnostics(){
+  const box=$("notificationDiag");
+  if(!box)return;
+  const level=await notificationPermission();
+  const active=await activeReminderNotifications();
+  const event=await getReminderEvent();
+  const permission=level==="granted"?"разрешение браузера выдано":level==="denied"?"браузер запретил уведомления":"разрешение браузера не выдано";
+  const shown=active===null?"":` Сейчас показано напоминаний: ${active}.`;
+  // Если напоминание показано, а события о нажатии нет — значит браузер не передал его расширению.
+  // В этом случае форма открывается нажатием на само уведомление, о чём и предупреждаем.
+  const stuck=event?.kind==="shown"&&Date.now()-event.at>5000;
+  const hint=stuck
+    ?" Нажатие кнопки до расширения не дошло: нажмите на само уведомление — форма новой записи откроется. На macOS кнопки бывают видны только при стиле уведомлений «Оповещения»."
+    :"";
+  box.textContent=`${permission}.${shown} Последнее событие: ${describeEvent(event)}${hint}`;
+  scheduleDiagnosticsRefresh(event);
 }
 
 function renderReminders(){
@@ -158,7 +210,8 @@ async function testReminder(){
       return;
     }
     await showReminder();
-    $("reminderStatus").textContent="Уведомление отправлено. «ОК» откроет форму новой записи, «Отмена» ничего не откроет.";
+    $("reminderStatus").textContent="Уведомление отправлено. «ОК» откроет форму новой записи, «Отмена» просто закроет уведомление.";
+    await renderNotificationDiagnostics();
   }catch(e){
     $("reminderStatus").textContent="Не удалось показать уведомление: "+(e instanceof Error?e.message:String(e));
   }finally{

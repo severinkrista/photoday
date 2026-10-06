@@ -60,6 +60,7 @@
     };
   }
   var ADD_ENTRY_KEY = "photodayAddEntry";
+  var REMINDER_EVENT_KEY = "reminderEvent";
   var ADD_ENTRY_TTL = 2 * 6e4;
   function sessionArea() {
     const scope = globalThis;
@@ -82,14 +83,32 @@
   async function saveReminderState(state) {
     await set("reminderState", state);
   }
+  async function saveReminderEvent(event) {
+    await set(REMINDER_EVENT_KEY, event);
+  }
 
   // src/reminders.ts
   var REMINDER_ALARM = "photoday-reminder";
   var REMINDER_NOTIFICATION = "photoday-reminder";
+  function isReminderNotification(id) {
+    return String(id ?? "").startsWith(REMINDER_NOTIFICATION);
+  }
   var ADD_WINDOW = { width: 780, height: 920 };
+  var NOTIFICATION_BUTTONS = [{ title: "\u041E\u041A" }, { title: "\u041E\u0442\u043C\u0435\u043D\u0430" }];
   function extensionApi() {
     const scope = globalThis;
     return scope.browser ?? scope.chrome ?? null;
+  }
+  function errorText(error) {
+    if (error instanceof Error) return error.message;
+    const text = String(error ?? "");
+    return text && text !== "undefined" ? text : "\u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430";
+  }
+  function trace(message, ...details) {
+    try {
+      console.info("[photoday] " + message, ...details);
+    } catch (e) {
+    }
   }
   function periodMinutes(reminders) {
     const every = Math.max(1, Math.floor(reminders.every || 1));
@@ -136,53 +155,126 @@
     await saveReminderState({ lastNotifiedAt: now.getTime() });
     await showReminder();
   }
+  async function platformOs() {
+    const api2 = extensionApi();
+    if (!api2?.runtime?.getPlatformInfo) return "";
+    try {
+      const info = await Promise.resolve(api2.runtime.getPlatformInfo());
+      return String(info?.os ?? "");
+    } catch (e) {
+      return "";
+    }
+  }
   async function showReminder() {
     const api2 = extensionApi();
     if (!api2?.notifications) throw new Error("\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0432 \u044D\u0442\u043E\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.");
+    const id = `${REMINDER_NOTIFICATION}-${Date.now()}`;
+    const holdOnScreen = await platformOs() !== "mac";
     const iconUrl = api2.runtime?.getURL ? api2.runtime.getURL("icons/icon128.png") : "icons/icon128.png";
     await new Promise((resolve) => {
       try {
-        api2.notifications.create(REMINDER_NOTIFICATION, {
+        api2.notifications.create(id, {
           type: "basic",
           iconUrl,
           title: "\u0424\u043E\u0442\u043E \u0434\u043D\u044F",
           message: "\u041E\u043F\u0438\u0448\u0438\u0442\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438, \u043F\u043E\u043A\u0430 \u043D\u0435 \u0437\u0430\u0431\u044B\u043B\u0438, \u0447\u0442\u043E \u0431\u044B\u043B\u043E \u0441\u0434\u0435\u043B\u0430\u043D\u043E.",
-          contextMessage: "\xAB\u041E\u041A\xBB \u2014 \u043E\u0442\u043A\u0440\u044B\u0442\u044C \u0444\u043E\u0440\u043C\u0443 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438.",
-          buttons: [{ title: "\u041E\u041A" }, { title: "\u041E\u0442\u043C\u0435\u043D\u0430" }],
-          requireInteraction: true,
+          contextMessage: "\xAB\u041E\u041A\xBB \u2014 \u0444\u043E\u0440\u043C\u0430 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438; \u043C\u043E\u0436\u043D\u043E \u043F\u0440\u043E\u0441\u0442\u043E \u043D\u0430\u0436\u0430\u0442\u044C \u043D\u0430 \u044D\u0442\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435.",
+          buttons: NOTIFICATION_BUTTONS,
+          requireInteraction: holdOnScreen,
           priority: 2
         }, () => {
           void api2.runtime?.lastError;
           resolve();
         });
       } catch (e) {
+        trace("\u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435", errorText(e));
         resolve();
       }
     });
+    trace("\u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435", id);
+    await saveReminderEvent({ kind: "shown", at: Date.now(), notificationId: id, action: "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E, \u0436\u0434\u0451\u043C \u043D\u0430\u0436\u0430\u0442\u0438\u044F." });
+    return id;
+  }
+  function openedText(result) {
+    switch (result.opened) {
+      case "popup":
+        return "\u041E\u0442\u043A\u0440\u044B\u043B\u043E\u0441\u044C \u043E\u043A\u043D\u043E \u043F\u043B\u0430\u0433\u0438\u043D\u0430 (popup).";
+      case "window":
+        return "\u041E\u0442\u043A\u0440\u044B\u043B\u043E\u0441\u044C \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u043E\u0435 \u043E\u043A\u043D\u043E \u0444\u043E\u0440\u043C\u044B \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438.";
+      case "tab":
+        return "\u0424\u043E\u0440\u043C\u0430 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438 \u043E\u0442\u043A\u0440\u044B\u043B\u0430\u0441\u044C \u0432 \u043D\u043E\u0432\u043E\u0439 \u0432\u043A\u043B\u0430\u0434\u043A\u0435.";
+      default:
+        return "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0442\u043A\u0440\u044B\u0442\u044C \u043E\u043A\u043D\u043E: " + (result.error ?? "\u043F\u0440\u0438\u0447\u0438\u043D\u0430 \u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430");
+    }
   }
   async function openAddWindow() {
     const api2 = extensionApi();
-    if (!api2) return;
+    if (!api2) return { opened: "none", error: "\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043A API \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F." };
     await markAddEntry();
-    try {
-      if (api2.action?.openPopup) {
+    const errors = [];
+    if (api2.action?.openPopup) {
+      try {
         await Promise.resolve(api2.action.openPopup());
-        return;
+        trace("\u0444\u043E\u0440\u043C\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u0447\u0435\u0440\u0435\u0437 action.openPopup");
+        return { opened: "popup" };
+      } catch (e) {
+        errors.push("openPopup: " + errorText(e));
+        trace("action.openPopup \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B", errorText(e));
       }
-    } catch (e) {
     }
     const url = api2.runtime?.getURL ? api2.runtime.getURL("popup.html?new=1") : "popup.html?new=1";
-    try {
-      if (api2.windows?.create) {
+    if (api2.windows?.create) {
+      try {
         await Promise.resolve(api2.windows.create({ url, type: "popup", width: ADD_WINDOW.width, height: ADD_WINDOW.height, focused: true }));
-        return;
+        trace("\u0444\u043E\u0440\u043C\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u043C \u043E\u043A\u043D\u043E\u043C");
+        return { opened: "window" };
+      } catch (e) {
+        errors.push("windows.create: " + errorText(e));
+        trace("windows.create \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B", errorText(e));
       }
-    } catch (e) {
     }
+    if (api2.tabs?.create) {
+      try {
+        await Promise.resolve(api2.tabs.create({ url }));
+        trace("\u0444\u043E\u0440\u043C\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u043E\u0439");
+        return { opened: "tab" };
+      } catch (e) {
+        errors.push("tabs.create: " + errorText(e));
+        trace("tabs.create \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B", errorText(e));
+      }
+    }
+    return { opened: "none", error: errors.join("; ") || "\u041D\u0438 \u043E\u0434\u0438\u043D \u0441\u043F\u043E\u0441\u043E\u0431 \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u044F \u043E\u043A\u043D\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D." };
+  }
+  async function clearNotification(id) {
+    const api2 = extensionApi();
+    if (!api2?.notifications?.clear) return;
     try {
-      await Promise.resolve(api2.tabs?.create?.({ url }));
+      await Promise.resolve(api2.notifications.clear(id));
     } catch (e) {
     }
+  }
+  async function handleNotificationButton(id, index) {
+    if (!isReminderNotification(id)) return;
+    const title = NOTIFICATION_BUTTONS[index]?.title ?? "\u043A\u043D\u043E\u043F\u043A\u0430 " + (index + 1);
+    trace("\u043D\u0430\u0436\u0430\u0442\u0430 \u043A\u043D\u043E\u043F\u043A\u0430 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F", id, title);
+    await clearNotification(id);
+    if (index !== 0) {
+      await saveReminderEvent({ kind: "button", button: title, index, at: Date.now(), notificationId: id, action: "\xAB\u041E\u0442\u043C\u0435\u043D\u0430\xBB \u2014 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E, \u043E\u043A\u043D\u043E \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u0432\u0430\u043B\u043E\u0441\u044C." });
+      return;
+    }
+    const result = await openAddWindow();
+    await saveReminderEvent({ kind: "button", button: title, index, at: Date.now(), notificationId: id, opened: result.opened, error: result.error, action: openedText(result) });
+  }
+  async function handleNotificationClick(id) {
+    if (!isReminderNotification(id)) return;
+    trace("\u043D\u0430\u0436\u0430\u0442\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435", id);
+    await clearNotification(id);
+    const result = await openAddWindow();
+    await saveReminderEvent({ kind: "body", at: Date.now(), notificationId: id, opened: result.opened, error: result.error, action: openedText(result) });
+  }
+  async function handleNotificationClosed(id, byUser) {
+    if (!isReminderNotification(id)) return;
+    await saveReminderEvent({ kind: "closed", at: Date.now(), notificationId: id, action: byUser ? "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u043C." : "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E \u0441\u0438\u0441\u0442\u0435\u043C\u043E\u0439." });
   }
 
   // src/background.ts
@@ -198,14 +290,13 @@
       void handleReminderAlarm(String(alarm?.name ?? ""));
     });
     api.notifications?.onButtonClicked?.addListener((id, index) => {
-      if (id !== REMINDER_NOTIFICATION) return;
-      void Promise.resolve(api.notifications.clear(id)).catch(() => void 0);
-      if (index === 0) void openAddWindow();
+      void handleNotificationButton(String(id ?? ""), Number(index) || 0);
     });
     api.notifications?.onClicked?.addListener((id) => {
-      if (id !== REMINDER_NOTIFICATION) return;
-      void Promise.resolve(api.notifications.clear(id)).catch(() => void 0);
-      void openAddWindow();
+      void handleNotificationClick(String(id ?? ""));
+    });
+    api.notifications?.onClosed?.addListener((id, byUser) => {
+      void handleNotificationClosed(String(id ?? ""), Boolean(byUser));
     });
     void syncReminderAlarm();
   }
