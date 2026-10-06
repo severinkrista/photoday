@@ -13,12 +13,22 @@ const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const input=(id:string)=>$(id) as HTMLInputElement;
 
 function runtimeApi(){return (globalThis as any).browser?.runtime ?? (globalThis as any).chrome?.runtime;}
+/** Корень API (browser/chrome): нужен для tabs, action и других пространств имён. */
+function extensionApi(){return (globalThis as any).browser ?? (globalThis as any).chrome;}
 function openSettings(){runtimeApi()?.openOptionsPage?.();}
+/** Аналитика — отдельная страница расширения: в popup для графиков слишком мало места. */
+function openAnalytics(){
+  const api=extensionApi();
+  const url=api?.runtime?.getURL?.("analytics.html")??"analytics.html";
+  if(api?.tabs?.create){void api.tabs.create({url});return;}
+  window.open(url,"_blank");
+}
 
 function bind(){
-  if(!$("refresh")||!$("add")||!$("openSettings"))throw new Error("Интерфейс popup не загружен полностью.");
+  if(!$("refresh")||!$("add")||!$("openSettings")||!$("openAnalytics"))throw new Error("Интерфейс popup не загружен полностью.");
   $("refresh").onclick=()=>void refresh();
   $("openSettings").onclick=()=>openSettings();
+  $("openAnalytics").onclick=()=>openAnalytics();
   $("add").onclick=()=>void addCurrentTask();
   $("attachment").addEventListener("change",()=>{$("attachmentName").textContent=input("attachment").files?.[0]?.name??"";});
   for(let i=1;i<=5;i++)$<HTMLButtonElement>("difficulty-"+i).onclick=()=>setDifficulty(i);
