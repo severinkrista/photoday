@@ -1,34 +1,19 @@
 "use strict";
 (() => {
-  var __defProp = Object.defineProperty;
-  var __getOwnPropNames = Object.getOwnPropertyNames;
-  var __esm = (fn, res) => function __init() {
-    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-  };
-  var __export = (target, all) => {
-    for (var name in all)
-      __defProp(target, name, { get: all[name], enumerable: true });
-  };
-
   // src/model.ts
-  var DEFAULT_TASK_TYPES, DEFAULT_SETTINGS;
-  var init_model = __esm({
-    "src/model.ts"() {
-      "use strict";
-      DEFAULT_TASK_TYPES = [
-        { code: "\u0423", description: "\u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0447\u0435\u0441\u043A\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
-        { code: "\u0420", description: "\u0440\u0443\u0442\u0438\u043D\u0430, \u0440\u044F\u0434\u043E\u0432\u044B\u0435 \u0440\u0430\u0431\u043E\u0447\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
-        { code: "\u041E\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438 \u043A\u0430\u0441\u0430\u044E\u0449\u0438\u0435\u0441\u044F \u0432\u0441\u0435\u0439 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438 \u0432 \u0446\u0435\u043B\u043E\u043C, \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043C\u043E\u0438\u043C \u0434\u0435\u043F\u0430\u0440\u0442\u0430\u043C\u0435\u043D\u0442\u043E\u043C" },
-        { code: "\u041B", description: "\u043B\u0438\u0447\u043D\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438, \u043D\u0435 \u043A\u0430\u0441\u0430\u044E\u0449\u0438\u0435\u0441\u044F \u0440\u0430\u0431\u043E\u0447\u0438\u0445 \u0432\u043E\u043F\u0440\u043E\u0441\u043E\u0432" },
-        { code: "\u0417\u041F", description: "\u0437\u0430\u0434\u0430\u0447\u0438, \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0435 \u0441 \u0437\u0430\u0440\u043F\u043B\u0430\u0442\u043E\u0439 \u0438\u043B\u0438 \u043F\u0440\u0435\u043C\u0438\u0435\u0439 \u043C\u043E\u0438\u0445 \u0441\u043E\u0442\u0440\u0443\u0434\u043D\u0438\u043A\u043E\u0432" },
-        { code: "\u0413\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438, \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0435 \u0441 \u0433\u043E\u0441\u0443\u0434\u0430\u0440\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u043C\u0438 \u043A\u043E\u043D\u043A\u0442\u0440\u0430\u043A\u0442\u0430\u043C\u0438" },
-        { code: "\u041A\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438 \u041A\u0440\u0438\u0441\u0442\u0430\u041A\u043E\u043C\u0430\u043D\u0434\u044B (\u0442\u0440\u0435\u043D\u0438\u043D\u0433\u0438 \u0432 \u043D\u0430\u0448\u0435\u0439 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438, \u0432\u044B\u0435\u0437\u0434\u043D\u044B\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F \u0438 \u0442.\u043F.)" }
-      ];
-      DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES };
-    }
-  });
+  var DEFAULT_TASK_TYPES = [
+    { code: "\u0423", description: "\u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0447\u0435\u0441\u043A\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
+    { code: "\u0420", description: "\u0440\u0443\u0442\u0438\u043D\u0430, \u0440\u044F\u0434\u043E\u0432\u044B\u0435 \u0440\u0430\u0431\u043E\u0447\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
+    { code: "\u041E\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438 \u043A\u0430\u0441\u0430\u044E\u0449\u0438\u0435\u0441\u044F \u0432\u0441\u0435\u0439 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438 \u0432 \u0446\u0435\u043B\u043E\u043C, \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043C\u043E\u0438\u043C \u0434\u0435\u043F\u0430\u0440\u0442\u0430\u043C\u0435\u043D\u0442\u043E\u043C" },
+    { code: "\u041B", description: "\u043B\u0438\u0447\u043D\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438, \u043D\u0435 \u043A\u0430\u0441\u0430\u044E\u0449\u0438\u0435\u0441\u044F \u0440\u0430\u0431\u043E\u0447\u0438\u0445 \u0432\u043E\u043F\u0440\u043E\u0441\u043E\u0432" },
+    { code: "\u0417\u041F", description: "\u0437\u0430\u0434\u0430\u0447\u0438, \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0435 \u0441 \u0437\u0430\u0440\u043F\u043B\u0430\u0442\u043E\u0439 \u0438\u043B\u0438 \u043F\u0440\u0435\u043C\u0438\u0435\u0439 \u043C\u043E\u0438\u0445 \u0441\u043E\u0442\u0440\u0443\u0434\u043D\u0438\u043A\u043E\u0432" },
+    { code: "\u0413\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438, \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0435 \u0441 \u0433\u043E\u0441\u0443\u0434\u0430\u0440\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u043C\u0438 \u043A\u043E\u043D\u043A\u0442\u0440\u0430\u043A\u0442\u0430\u043C\u0438" },
+    { code: "\u041A\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438 \u041A\u0440\u0438\u0441\u0442\u0430\u041A\u043E\u043C\u0430\u043D\u0434\u044B (\u0442\u0440\u0435\u043D\u0438\u043D\u0433\u0438 \u0432 \u043D\u0430\u0448\u0435\u0439 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438, \u0432\u044B\u0435\u0437\u0434\u043D\u044B\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F \u0438 \u0442.\u043F.)" }
+  ];
+  var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES };
 
   // src/storage.ts
+  var storage = globalThis.browser?.storage?.local ?? globalThis.chrome?.storage?.local;
   function toBase64(data) {
     let binary = "";
     const bytes = new Uint8Array(data);
@@ -73,9 +58,6 @@
   async function getToken() {
     return get("token", null);
   }
-  async function saveToken(t) {
-    await set("token", t);
-  }
   async function getPendingTasks() {
     const stored = await get("pending", []);
     return stored.map((p) => {
@@ -91,134 +73,6 @@
     });
     await set("pending", stored);
   }
-  var storage;
-  var init_storage = __esm({
-    "src/storage.ts"() {
-      "use strict";
-      init_model();
-      storage = globalThis.browser?.storage?.local ?? globalThis.chrome?.storage?.local;
-    }
-  });
-
-  // src/yandex.ts
-  var yandex_exports = {};
-  __export(yandex_exports, {
-    attachmentFolder: () => attachmentFolder,
-    connectToYandex: () => connectToYandex,
-    createAttachmentFolders: () => createAttachmentFolders,
-    downloadFile: () => downloadFile,
-    downloadWorkbook: () => downloadWorkbook,
-    ensureFolder: () => ensureFolder,
-    folderExists: () => folderExists,
-    testConnection: () => testConnection,
-    uploadAttachment: () => uploadAttachment,
-    uploadWorkbook: () => uploadWorkbook
-  });
-  function random(n = 48) {
-    return [...crypto.getRandomValues(new Uint8Array(n))].map((x) => (x % 36).toString(36)).join("");
-  }
-  async function challenge(v) {
-    const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
-    return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  }
-  async function connectToYandex() {
-    const verifier = random(), state = random(32), url = new URL("https://oauth.yandex.ru/authorize");
-    url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", CLIENT_ID);
-    url.searchParams.set("redirect_uri", REDIRECT);
-    url.searchParams.set("scope", SCOPE);
-    url.searchParams.set("code_challenge", await challenge(verifier));
-    url.searchParams.set("code_challenge_method", "S256");
-    url.searchParams.set("state", state);
-    url.searchParams.set("force_confirm", "yes");
-    window.open(url.toString(), "_blank");
-    const code = window.prompt("\u041F\u043E\u0441\u043B\u0435 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u0438 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0441\u044E\u0434\u0430 \u043A\u043E\u0434 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u044F \u042F\u043D\u0434\u0435\u043A\u0441 OAuth:");
-    if (!code?.trim()) throw new Error("\u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430.");
-    const body = new URLSearchParams({ grant_type: "authorization_code", code: code.trim(), client_id: CLIENT_ID, redirect_uri: REDIRECT, code_verifier: verifier });
-    const r = await fetch("https://oauth.yandex.ru/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-    if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 OAuth: HTTP " + r.status + " " + await r.text());
-    const j = await r.json();
-    if (!j.access_token) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 OAuth \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B access_token.");
-    await saveToken(j.access_token);
-  }
-  async function api(url, init2 = {}) {
-    const token = await getToken();
-    if (!token) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D.");
-    const h = new Headers(init2.headers);
-    h.set("Authorization", "OAuth " + token);
-    const r = await fetch(url, { ...init2, headers: h });
-    if (r.status === 401) throw new Error("\u0422\u043E\u043A\u0435\u043D \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0430 \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u0435\u043D. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 \u0437\u0430\u043D\u043E\u0432\u043E.");
-    return r;
-  }
-  async function href(op, path, extra = "") {
-    const r = await api("https://cloud-api.yandex.net/v1/disk/" + op + "?path=" + encodeURIComponent(path) + extra);
-    if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A: HTTP " + r.status + " " + await r.text());
-    const j = await r.json();
-    if (!j.href) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u0441\u0441\u044B\u043B\u043A\u0443 \u043E\u043F\u0435\u0440\u0430\u0446\u0438\u0438.");
-    return j.href;
-  }
-  async function downloadWorkbook(s) {
-    const r = await api(await href("resources/download", s.diskPath));
-    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043A\u0430\u0447\u0430\u0442\u044C XLSX: HTTP " + r.status);
-    return r.arrayBuffer();
-  }
-  async function uploadWorkbook(s, data) {
-    const r = await api(await href("resources/upload", s.diskPath, "&overwrite=true"), { method: "PUT", headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }, body: data });
-    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C XLSX: HTTP " + r.status + " " + await r.text());
-  }
-  async function folderExists(path) {
-    const r = await api("https://cloud-api.yandex.net/v1/disk/resources?path=" + encodeURIComponent(path));
-    if (r.status === 404) return false;
-    if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A: HTTP " + r.status + " " + await r.text());
-    return (await r.json()).type === "dir";
-  }
-  async function ensureFolder(path) {
-    const r = await api("https://cloud-api.yandex.net/v1/disk/resources?path=" + encodeURIComponent(path), { method: "PUT" });
-    if (r.ok) return;
-    if (r.status === 409 && await folderExists(path)) return;
-    throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0437\u0434\u0430\u0442\u044C \u043F\u0430\u043F\u043A\u0443 " + path + ": HTTP " + r.status + " " + await r.text());
-  }
-  function attachmentFolder(s, date2) {
-    const p = s.diskPath.substring(0, s.diskPath.lastIndexOf("/"));
-    const [y, m] = date2.split("-");
-    return p + "/attached/" + y + "/" + m;
-  }
-  async function createAttachmentFolders(folder) {
-    const y = folder.substring(0, folder.lastIndexOf("/"));
-    const a = y.substring(0, y.lastIndexOf("/"));
-    await ensureFolder(a);
-    await ensureFolder(y);
-    await ensureFolder(folder);
-  }
-  async function uploadAttachment(path, data, type) {
-    const r = await api(await href("resources/upload", path, "&overwrite=true"), { method: "PUT", headers: { "Content-Type": type || "application/octet-stream" }, body: data });
-    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u0435: HTTP " + r.status);
-  }
-  async function downloadFile(path) {
-    const r = await api(await href("resources/download", path));
-    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043A\u0430\u0447\u0430\u0442\u044C \u0444\u0430\u0439\u043B: HTTP " + r.status);
-    return r.arrayBuffer();
-  }
-  async function testConnection(s) {
-    const b = await downloadWorkbook(s);
-    if (!b.byteLength) throw new Error("\u041E\u0441\u043D\u043E\u0432\u043D\u043E\u0439 XLSX-\u0444\u0430\u0439\u043B \u043F\u0443\u0441\u0442\u043E\u0439.");
-    const f = s.diskPath.substring(0, s.diskPath.lastIndexOf("/")) + "/attached";
-    return { filePath: s.diskPath, attachmentFolder: f, attachmentFolderExists: await folderExists(f) };
-  }
-  var CLIENT_ID, REDIRECT, SCOPE;
-  var init_yandex = __esm({
-    "src/yandex.ts"() {
-      "use strict";
-      init_storage();
-      CLIENT_ID = "f4ce4570ab454ee38f6792c37e61811d";
-      REDIRECT = "https://oauth.yandex.ru/verification_code";
-      SCOPE = "cloud_api:disk.read cloud_api:disk.write";
-    }
-  });
-
-  // src/popup.ts
-  init_model();
-  init_storage();
 
   // node_modules/xlsx-republish/xlsx.mjs
   var XLSX = {};
@@ -320,15 +174,15 @@
   var DENSE = null;
   var DIF_XL = true;
   var Base64_map = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-  function Base64_encode(input) {
+  function Base64_encode(input2) {
     var o = "";
     var c1 = 0, c2 = 0, c3 = 0, e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-    for (var i = 0; i < input.length; ) {
-      c1 = input.charCodeAt(i++);
+    for (var i = 0; i < input2.length; ) {
+      c1 = input2.charCodeAt(i++);
       e1 = c1 >> 2;
-      c2 = input.charCodeAt(i++);
+      c2 = input2.charCodeAt(i++);
       e2 = (c1 & 3) << 4 | c2 >> 4;
-      c3 = input.charCodeAt(i++);
+      c3 = input2.charCodeAt(i++);
       e3 = (c2 & 15) << 2 | c3 >> 6;
       e4 = c3 & 63;
       if (isNaN(c2)) {
@@ -340,19 +194,19 @@
     }
     return o;
   }
-  function Base64_encode_pass(input) {
+  function Base64_encode_pass(input2) {
     var o = "";
     var c1 = 0, c2 = 0, c3 = 0, e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-    for (var i = 0; i < input.length; ) {
-      c1 = input.charCodeAt(i++);
+    for (var i = 0; i < input2.length; ) {
+      c1 = input2.charCodeAt(i++);
       if (c1 > 255)
         c1 = 95;
       e1 = c1 >> 2;
-      c2 = input.charCodeAt(i++);
+      c2 = input2.charCodeAt(i++);
       if (c2 > 255)
         c2 = 95;
       e2 = (c1 & 3) << 4 | c2 >> 4;
-      c3 = input.charCodeAt(i++);
+      c3 = input2.charCodeAt(i++);
       if (c3 > 255)
         c3 = 95;
       e3 = (c2 & 15) << 2 | c3 >> 6;
@@ -366,15 +220,15 @@
     }
     return o;
   }
-  function Base64_encode_arr(input) {
+  function Base64_encode_arr(input2) {
     var o = "";
     var c1 = 0, c2 = 0, c3 = 0, e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-    for (var i = 0; i < input.length; ) {
-      c1 = input[i++];
+    for (var i = 0; i < input2.length; ) {
+      c1 = input2[i++];
       e1 = c1 >> 2;
-      c2 = input[i++];
+      c2 = input2[i++];
       e2 = (c1 & 3) << 4 | c2 >> 4;
-      c3 = input[i++];
+      c3 = input2[i++];
       e3 = (c2 & 15) << 2 | c3 >> 6;
       e4 = c3 & 63;
       if (isNaN(c2)) {
@@ -386,26 +240,26 @@
     }
     return o;
   }
-  function Base64_decode(input) {
+  function Base64_decode(input2) {
     var o = "";
     var c1 = 0, c2 = 0, c3 = 0, e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-    if (input.slice(0, 5) == "data:") {
-      var i = input.slice(0, 1024).indexOf(";base64,");
+    if (input2.slice(0, 5) == "data:") {
+      var i = input2.slice(0, 1024).indexOf(";base64,");
       if (i > -1)
-        input = input.slice(i + 8);
+        input2 = input2.slice(i + 8);
     }
-    input = input.replace(/[^\w\+\/\=]/g, "");
-    for (var i = 0; i < input.length; ) {
-      e1 = Base64_map.indexOf(input.charAt(i++));
-      e2 = Base64_map.indexOf(input.charAt(i++));
+    input2 = input2.replace(/[^\w\+\/\=]/g, "");
+    for (var i = 0; i < input2.length; ) {
+      e1 = Base64_map.indexOf(input2.charAt(i++));
+      e2 = Base64_map.indexOf(input2.charAt(i++));
       c1 = e1 << 2 | e2 >> 4;
       o += String.fromCharCode(c1);
-      e3 = Base64_map.indexOf(input.charAt(i++));
+      e3 = Base64_map.indexOf(input2.charAt(i++));
       c2 = (e2 & 15) << 4 | e3 >> 2;
       if (e3 !== 64) {
         o += String.fromCharCode(c2);
       }
-      e4 = Base64_map.indexOf(input.charAt(i++));
+      e4 = Base64_map.indexOf(input2.charAt(i++));
       c3 = (e3 & 3) << 6 | e4;
       if (e4 !== 64) {
         o += String.fromCharCode(c3);
@@ -33811,8 +33665,62 @@
     return writeSync(wb, { type: "array", bookType: "xlsx" });
   }
 
+  // src/yandex.ts
+  async function api(url, init2 = {}) {
+    const token = await getToken();
+    if (!token) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D.");
+    const h = new Headers(init2.headers);
+    h.set("Authorization", "OAuth " + token);
+    const r = await fetch(url, { ...init2, headers: h });
+    if (r.status === 401) throw new Error("\u0422\u043E\u043A\u0435\u043D \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0430 \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u0435\u043D. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 \u0437\u0430\u043D\u043E\u0432\u043E.");
+    return r;
+  }
+  async function href(op, path, extra = "") {
+    const r = await api("https://cloud-api.yandex.net/v1/disk/" + op + "?path=" + encodeURIComponent(path) + extra);
+    if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A: HTTP " + r.status + " " + await r.text());
+    const j = await r.json();
+    if (!j.href) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u0441\u0441\u044B\u043B\u043A\u0443 \u043E\u043F\u0435\u0440\u0430\u0446\u0438\u0438.");
+    return j.href;
+  }
+  async function downloadWorkbook(s) {
+    const r = await api(await href("resources/download", s.diskPath));
+    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043A\u0430\u0447\u0430\u0442\u044C XLSX: HTTP " + r.status);
+    return r.arrayBuffer();
+  }
+  async function uploadWorkbook(s, data) {
+    const r = await api(await href("resources/upload", s.diskPath, "&overwrite=true"), { method: "PUT", headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }, body: data });
+    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C XLSX: HTTP " + r.status + " " + await r.text());
+  }
+  async function folderExists(path) {
+    const r = await api("https://cloud-api.yandex.net/v1/disk/resources?path=" + encodeURIComponent(path));
+    if (r.status === 404) return false;
+    if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A: HTTP " + r.status + " " + await r.text());
+    return (await r.json()).type === "dir";
+  }
+  async function ensureFolder(path) {
+    const r = await api("https://cloud-api.yandex.net/v1/disk/resources?path=" + encodeURIComponent(path), { method: "PUT" });
+    if (r.ok) return;
+    if (r.status === 409 && await folderExists(path)) return;
+    throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0437\u0434\u0430\u0442\u044C \u043F\u0430\u043F\u043A\u0443 " + path + ": HTTP " + r.status + " " + await r.text());
+  }
+  function attachmentFolder(s, date2) {
+    const p = s.diskPath.substring(0, s.diskPath.lastIndexOf("/"));
+    const [y, m] = date2.split("-");
+    return p + "/attached/" + y + "/" + m;
+  }
+  async function createAttachmentFolders(folder) {
+    const y = folder.substring(0, folder.lastIndexOf("/"));
+    const a = y.substring(0, y.lastIndexOf("/"));
+    await ensureFolder(a);
+    await ensureFolder(y);
+    await ensureFolder(folder);
+  }
+  async function uploadAttachment(path, data, type) {
+    const r = await api(await href("resources/upload", path, "&overwrite=true"), { method: "PUT", headers: { "Content-Type": type || "application/octet-stream" }, body: data });
+    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u0435: HTTP " + r.status);
+  }
+
   // src/repository.ts
-  init_yandex();
   async function getTasks(s) {
     return readTasks(await downloadWorkbook(s));
   }
@@ -33826,13 +33734,60 @@
     await uploadWorkbook(s, updated);
   }
 
+  // src/datetime.ts
+  var WEEKDAYS = ["\u041F\u043D", "\u0412\u0442", "\u0421\u0440", "\u0427\u0442", "\u041F\u0442", "\u0421\u0431", "\u0412\u0441"];
+  function weekdayOf(date2) {
+    return WEEKDAYS[(date2.getDay() + 6) % 7];
+  }
+  function partOfDay(hour) {
+    if (hour < 8) return "\u0414\u043E \u043D\u0430\u0447\u0430\u043B\u0430 \u0440\u0430\u0431\u043E\u0447\u0435\u0433\u043E \u0434\u043D\u044F";
+    if (hour < 12) return "\u0423\u0442\u0440\u043E";
+    if (hour < 15) return "\u041E\u0431\u0435\u0434";
+    if (hour < 18) return "\u0412\u0435\u0447\u0435\u0440";
+    return "\u041F\u043E\u0441\u043B\u0435 \u043A\u043E\u043D\u0446\u0430 \u0440\u0430\u0431\u043E\u0447\u0435\u0433\u043E \u0434\u043D\u044F";
+  }
+  function localDate(date2) {
+    return [date2.getFullYear(), String(date2.getMonth() + 1).padStart(2, "0"), String(date2.getDate()).padStart(2, "0")].join("-");
+  }
+  function localTime(date2) {
+    return [date2.getHours(), date2.getMinutes(), date2.getSeconds()].map((x) => String(x).padStart(2, "0")).join(":");
+  }
+  function parseLocalDateTime(dateValue, timeValue) {
+    const d = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const t = timeValue.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!d || !t) return null;
+    const [year, month, day] = [Number(d[1]), Number(d[2]), Number(d[3])];
+    const [hour, minute, second] = [Number(t[1]), Number(t[2]), t[3] ? Number(t[3]) : 0];
+    if (hour > 23 || minute > 59 || second > 59) return null;
+    const value = new Date(year, month - 1, day, hour, minute, second, 0);
+    if (value.getFullYear() !== year || value.getMonth() !== month - 1 || value.getDate() !== day) return null;
+    return value;
+  }
+  function formatDateTime(date2) {
+    return [
+      [String(date2.getDate()).padStart(2, "0"), String(date2.getMonth() + 1).padStart(2, "0"), date2.getFullYear()].join("."),
+      localTime(date2).slice(0, 5)
+    ].join(" ");
+  }
+  function displayDate(value) {
+    if (!value) return "";
+    const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!iso) return value;
+    return [iso[3], iso[2], iso[1]].join(".");
+  }
+  function momentLabel(record) {
+    return [displayDate(record.date), (record.time ?? "").slice(0, 5)].filter(Boolean).join(" ");
+  }
+
   // src/popup.ts
   var settings = DEFAULT_SETTINGS;
   var records = [];
   var pending = [];
   var adding = false;
+  var scheduledAt = null;
   var retrying = /* @__PURE__ */ new Set();
   var $2 = (id) => document.getElementById(id);
+  var input = (id) => $2(id);
   function runtimeApi() {
     return globalThis.browser?.runtime ?? globalThis.chrome?.runtime;
   }
@@ -33845,9 +33800,30 @@
     $2("openSettings").onclick = () => openSettings();
     $2("add").onclick = () => void addCurrentTask();
     $2("attachment").addEventListener("change", () => {
-      $2("attachmentName").textContent = $2("attachment").files?.[0]?.name ?? "";
+      $2("attachmentName").textContent = input("attachment").files?.[0]?.name ?? "";
     });
     for (let i = 1; i <= 5; i++) $2("difficulty-" + i).onclick = () => setDifficulty(i);
+    $2("scheduleToggle").onclick = () => toggleSchedule();
+    $2("scheduleNow").onclick = () => {
+      scheduledAt = null;
+      syncScheduleInputs();
+      renderSchedule();
+    };
+    $2("scheduleToday").onclick = () => {
+      syncScheduleInputs();
+      input("scheduleDate").value = localDate(/* @__PURE__ */ new Date());
+      scheduleFromInputs();
+    };
+    $2("scheduleYesterday").onclick = () => {
+      syncScheduleInputs();
+      const d = /* @__PURE__ */ new Date();
+      d.setDate(d.getDate() - 1);
+      input("scheduleDate").value = localDate(d);
+      scheduleFromInputs();
+    };
+    $2("scheduleDone").onclick = () => toggleSchedule(false);
+    input("scheduleDate").addEventListener("change", scheduleFromInputs);
+    input("scheduleTime").addEventListener("change", scheduleFromInputs);
   }
   async function init() {
     try {
@@ -33855,6 +33831,7 @@
       pending = await getPendingTasks();
       renderSettings();
       setDifficulty(0);
+      renderSchedule();
       await refresh();
     } catch (e) {
       showError(e);
@@ -33870,6 +33847,34 @@
   function selectedDifficulty() {
     for (let i = 5; i >= 1; i--) if ($2("difficulty-" + i).classList.contains("selected")) return i;
     return 0;
+  }
+  function toggleSchedule(open) {
+    const editor = $2("scheduleEditor");
+    const show = open ?? editor.hidden;
+    editor.hidden = !show;
+    $2("scheduleToggle").setAttribute("aria-expanded", String(show));
+    if (show) syncScheduleInputs();
+  }
+  function syncScheduleInputs() {
+    const moment = scheduledAt ?? /* @__PURE__ */ new Date();
+    input("scheduleDate").value = localDate(moment);
+    input("scheduleTime").value = localTime(moment).slice(0, 5);
+  }
+  function scheduleFromInputs() {
+    const parsed = parseLocalDateTime(input("scheduleDate").value, input("scheduleTime").value);
+    if (!parsed) {
+      syncScheduleInputs();
+      return;
+    }
+    scheduledAt = parsed;
+    renderSchedule();
+  }
+  function renderSchedule() {
+    $2("scheduleValue").textContent = scheduledAt ? formatDateTime(scheduledAt) : "\u0441\u0435\u0439\u0447\u0430\u0441";
+    $2("scheduleToggle").classList.toggle("custom", scheduledAt !== null);
+  }
+  function scheduledMoment() {
+    return scheduledAt ? new Date(scheduledAt) : /* @__PURE__ */ new Date();
   }
   async function refresh() {
     clearError();
@@ -33904,10 +33909,10 @@
     adding = true;
     $2("add").disabled = true;
     try {
-      const now = /* @__PURE__ */ new Date(), date2 = localDate(now), file = $2("attachment").files?.[0];
+      const moment = scheduledMoment(), date2 = localDate(moment), file = input("attachment").files?.[0];
       const suffix = file ? "_" + crypto.randomUUID().replace(/-/g, "").slice(0, 5) : "";
       const target = file ? file.name.replace(/(\.[^.]+)?$/, suffix + "$1") : void 0;
-      const task = { id: crypto.randomUUID(), date: date2, time: now.toTimeString().slice(0, 8), weekday: ["\u041F\u043D", "\u0412\u0442", "\u0421\u0440", "\u0427\u0442", "\u041F\u0442", "\u0421\u0431", "\u0412\u0441"][now.getDay() === 0 ? 6 : now.getDay() - 1], partOfDay: partOfDay(now), taskType: $2("type").value, task: text, difficulty: selectedDifficulty(), attachmentFolder: file ? (await Promise.resolve().then(() => (init_yandex(), yandex_exports))).attachmentFolder(settings, date2) : void 0, attachmentName: target };
+      const task = { id: crypto.randomUUID(), date: date2, time: localTime(moment), weekday: weekdayOf(moment), partOfDay: partOfDay(moment.getHours()), taskType: $2("type").value, task: text, difficulty: selectedDifficulty(), attachmentFolder: file ? attachmentFolder(settings, date2) : void 0, attachmentName: target };
       const item = { task, attachment: file ? { name: file.name, type: file.type, data: await file.arrayBuffer() } : void 0, createdAt: `${Date.now()}-${crypto.randomUUID()}` };
       pending.push(item);
       try {
@@ -33934,6 +33939,7 @@
       await addTask(settings, item.task, item.attachment);
       pending = pending.filter((x) => x.createdAt !== item.createdAt);
       await savePendingTasks(pending);
+      showNotice("\u0417\u0430\u043F\u0438\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0430: " + momentLabel(item.task) + ".");
       await refresh();
     } catch (e) {
       showError(e);
@@ -33950,7 +33956,7 @@
   function clearForm() {
     $2("task").value = "";
     setDifficulty(0);
-    $2("attachment").value = "";
+    input("attachment").value = "";
     $2("attachmentName").textContent = "";
   }
   function renderSettings() {
@@ -33972,7 +33978,7 @@
       card.className = "task-card";
       const meta = document.createElement("div");
       meta.className = "task-meta";
-      meta.textContent = (r.date ?? "") + " " + (r.time ?? "") + " \u2022 " + r.taskType + " \u2022 " + ("\u2605".repeat(r.difficulty ?? 0) || "0");
+      meta.textContent = momentLabel(r) + " \u2022 " + r.taskType + " \u2022 " + ("\u2605".repeat(r.difficulty ?? 0) || "0");
       const text = document.createElement("div");
       text.className = "task-text";
       text.textContent = r.task;
@@ -33997,7 +34003,7 @@
       const title = document.createElement("strong");
       title.textContent = "\u041D\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 \u0442\u0430\u0431\u043B\u0438\u0446\u0443";
       const text = document.createElement("div");
-      text.textContent = (p.task.date ?? "") + " \u2022 " + p.task.taskType + " \u2022 " + p.task.task;
+      text.textContent = momentLabel(p.task) + " \u2022 " + p.task.taskType + " \u2022 " + p.task.task;
       const actions = document.createElement("div");
       actions.className = "actions";
       const c = document.createElement("button");
@@ -34019,23 +34025,19 @@
   function showError(e) {
     $2("error").textContent = e instanceof Error ? e.message : String(e);
     $2("error").hidden = false;
+    $2("notice").hidden = true;
   }
   function clearError() {
     $2("error").hidden = true;
   }
-  function localDate(d) {
-    return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+  function showNotice(text) {
+    $2("notice").textContent = text;
+    $2("notice").hidden = false;
+    $2("error").hidden = true;
   }
   function localDateObject(s) {
     const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
-  }
-  function partOfDay(d) {
-    if (d.getHours() < 8) return "\u0414\u043E \u043D\u0430\u0447\u0430\u043B\u0430 \u0440\u0430\u0431\u043E\u0447\u0435\u0433\u043E \u0434\u043D\u044F";
-    if (d.getHours() < 12) return "\u0423\u0442\u0440\u043E";
-    if (d.getHours() < 15) return "\u041E\u0431\u0435\u0434";
-    if (d.getHours() < 18) return "\u0412\u0435\u0447\u0435\u0440";
-    return "\u041F\u043E\u0441\u043B\u0435 \u043A\u043E\u043D\u0446\u0430 \u0440\u0430\u0431\u043E\u0447\u0435\u0433\u043E \u0434\u043D\u044F";
   }
   bind();
   void init();

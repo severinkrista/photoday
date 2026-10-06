@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,6 +43,7 @@ import ru.krista.photoday.analytics.AnalyticsEngine
 import ru.krista.photoday.analytics.AnalyticsGroupBy
 import ru.krista.photoday.analytics.AnalyticsMetric
 import ru.krista.photoday.analytics.AnalyticsQuery
+import ru.krista.photoday.domain.TaskMoment
 import ru.krista.photoday.domain.TaskRecord
 import ru.krista.photoday.presentation.MainUiState
 import ru.krista.photoday.presentation.MainViewModel
@@ -57,9 +59,21 @@ import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProdu
 import com.patrykandpatrick.vico.compose.cartesian.data.columnModel
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+
+private val recordDateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+private val recordTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+/** Дата и время записи одной строкой: «05.10.2026 14:30». */
+private fun momentLabel(record: TaskRecord): String =
+    listOfNotNull(
+        record.date?.format(recordDateFormatter),
+        record.time?.format(recordTimeFormatter)
+    ).joinToString(" ")
 
 private fun Modifier.edgeBackGesture(onBack: () -> Unit): Modifier = pointerInput(Unit) {
     var startX = 0f
@@ -225,9 +239,9 @@ private fun PhotoDayScreen(vm: MainViewModel) {
         AddTaskCard(
             taskTypes = state.taskTypes,
             onDismiss = { showAdd = false },
-            onSave = { type, difficulty, text, attachmentUri ->
+            onSave = { type, difficulty, text, date, time, attachmentUri ->
                 showAdd = false
-                vm.addTask(type, difficulty, text, attachmentUri)
+                vm.addTask(type, difficulty, text, attachmentUri, date, time)
             }
         )
     }
@@ -642,7 +656,7 @@ private fun TaskCard(record: TaskRecord, onOpenAttachment: (TaskRecord) -> Unit 
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("${record.date ?: ""}  •  ${record.taskType}", style = MaterialTheme.typography.labelMedium)
+                Text("${momentLabel(record)}  •  ${record.taskType}", style = MaterialTheme.typography.labelMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!record.attachmentName.isNullOrBlank()) {
                         Text(
@@ -937,7 +951,7 @@ private fun AnalyticsTable(
 private fun AddTaskCard(
     taskTypes: List<String>,
     onDismiss: () -> Unit,
-    onSave: (String, Int, String, android.net.Uri?) -> Unit
+    onSave: (String, Int, String, LocalDate, LocalTime, android.net.Uri?) -> Unit
 ) {
     var type by remember(taskTypes) { mutableStateOf(taskTypes.firstOrNull() ?: "") }
     var attachmentUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -948,15 +962,22 @@ private fun AddTaskCard(
     }
     var difficulty by remember { mutableIntStateOf(0) }
     var text by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(LocalDate.now()) }
+    var time by remember { mutableStateOf(LocalTime.now().withSecond(0).withNano(0)) }
+    var dateTimeDialogOpen by remember { mutableStateOf(false) }
 
-    val date = LocalDate.now()
-    val time = LocalTime.now()
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy") }
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
     Card(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).edgeBackGesture(onDismiss),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Форма прокручивается: на невысоких экранах кнопка «Сохранить» остаётся доступной.
+        Column(
+            Modifier.padding(14.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Новая задача", style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = onDismiss) { Text("Отмена") }
@@ -966,8 +987,18 @@ private fun AddTaskCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("${date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}  •  $type", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "${date.format(dateFormatter)}  •  ${time.format(timeFormatter)}  •  $type",
+                    style = MaterialTheme.typography.labelMedium
+                )
                 Text(if (difficulty == 0) "0" else "★".repeat(difficulty), style = MaterialTheme.typography.labelMedium)
+            }
+            OutlinedButton(
+                onClick = { dateTimeDialogOpen = true },
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("🗓 Изменить дату и время")
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 taskTypes.forEach { value ->
@@ -1008,9 +1039,158 @@ private fun AddTaskCard(
                 minLines = 8,
                 maxLines = 14
             )
-            Button(onClick = { onSave(type, difficulty, text, attachmentUri) }, enabled = text.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { onSave(type, difficulty, text, date, time, attachmentUri) },
+                enabled = text.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text("Сохранить")
             }
         }
+    }
+
+    if (dateTimeDialogOpen) {
+        TaskDateTimeDialog(
+            initialDate = date,
+            initialTime = time,
+            onDismiss = { dateTimeDialogOpen = false },
+            onConfirm = { newDate, newTime ->
+                date = newDate
+                time = newTime
+                dateTimeDialogOpen = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskDateTimeDialog(
+    initialDate: LocalDate,
+    initialTime: LocalTime,
+    onDismiss: () -> Unit,
+    onConfirm: (LocalDate, LocalTime) -> Unit
+) {
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy") }
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    var date by remember(initialDate) { mutableStateOf(initialDate) }
+    var time by remember(initialTime) { mutableStateOf(initialTime) }
+    var datePickerOpen by remember { mutableStateOf(false) }
+    var timePickerOpen by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Дата и время записи") },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Если задача не была внесена сразу, укажите прошедшую дату и время — запись сохранится в таблице с этой отметкой.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { datePickerOpen = true }, modifier = Modifier.weight(1f)) {
+                        Text("📅 " + date.format(dateFormatter))
+                    }
+                    OutlinedButton(onClick = { timePickerOpen = true }, modifier = Modifier.weight(1f)) {
+                        Text("🕒 " + time.format(timeFormatter))
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            val now = LocalTime.now().withSecond(0).withNano(0)
+                            date = LocalDate.now()
+                            time = now
+                        },
+                        label = { Text("Сейчас") }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = { date = LocalDate.now() },
+                        label = { Text("Сегодня") }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = { date = LocalDate.now().minusDays(1) },
+                        label = { Text("Вчера") }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = { date = LocalDate.now().minusDays(2) },
+                        label = { Text("Позавчера") }
+                    )
+                }
+                Text(
+                    "В таблицу попадёт: ${date.format(dateFormatter)} (${TaskMoment.weekday(date)}), " +
+                        "${time.format(timeFormatter)}, ${TaskMoment.partOfDay(time)}.",
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(date, time) }) { Text("Готово") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
+    )
+
+    if (datePickerOpen) {
+        val datePickerState = rememberDatePickerState(
+            // DatePicker работает в UTC-полуночи, поэтому дата передаётся и читается через UTC.
+            initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { datePickerOpen = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                    }
+                    datePickerOpen = false
+                }) { Text("ОК") }
+            },
+            dismissButton = {
+                TextButton(onClick = { datePickerOpen = false }) { Text("Отмена") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (timePickerOpen) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = time.hour,
+            initialMinute = time.minute,
+            is24Hour = true
+        )
+        AlertDialog(
+            onDismissRequest = { timePickerOpen = false },
+            title = { Text("Время записи") },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TimeInput(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    time = LocalTime.of(timePickerState.hour, timePickerState.minute)
+                    timePickerOpen = false
+                }) { Text("ОК") }
+            },
+            dismissButton = {
+                TextButton(onClick = { timePickerOpen = false }) { Text("Отмена") }
+            }
+        )
     }
 }
