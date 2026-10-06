@@ -10,6 +10,6 @@ export const DEFAULT_SETTINGS:AppSettings={displayMode:"tasks",tasksToShow:10,da
 /** Размер окна плагина, который пользователь задал перетаскиванием уголка. */
 export interface PopupSize { width:number; height:number; }
 /** Допустимые границы окна плагина: снизу — чтобы содержимое осталось читаемым, сверху — предел popup в Chrome (800×600). */
-export const POPUP_SIZE={minWidth:320,minHeight:360,maxWidth:800,maxHeight:600};
+export const POPUP_SIZE={minWidth:320,minHeight:460,maxWidth:800,maxHeight:600};
 export const DEFAULT_POPUP_SIZE:PopupSize={width:720,height:600};
 export interface PendingTask { task:TaskRecord; attachment?:{name:string;type:string;data:ArrayBuffer}; createdAt:number|string; }

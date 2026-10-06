@@ -12,7 +12,7 @@
   ];
   var DEFAULT_REMINDERS = { enabled: true, from: "09:00", to: "18:00", every: 1, unit: "hours" };
   var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES, reminders: DEFAULT_REMINDERS };
-  var POPUP_SIZE = { minWidth: 320, minHeight: 360, maxWidth: 800, maxHeight: 600 };
+  var POPUP_SIZE = { minWidth: 320, minHeight: 460, maxWidth: 800, maxHeight: 600 };
   var DEFAULT_POPUP_SIZE = { width: 720, height: 600 };
 
   // src/storage.ts
@@ -34034,16 +34034,21 @@
   function scheduledMoment() {
     return scheduledAt ? new Date(scheduledAt) : /* @__PURE__ */ new Date();
   }
+  function setConnection(text) {
+    const element = $2("connection");
+    element.textContent = text;
+    element.hidden = !text;
+  }
   async function refresh() {
     clearError();
     $2("refresh").setAttribute("disabled", "");
     try {
       if (!await getToken()) {
-        $2("connection").textContent = "\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D \u2014 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u0432 \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445";
+        setConnection("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D \u2014 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u0432 \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445");
         renderRecords();
         return;
       }
-      $2("connection").textContent = "\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D";
+      setConnection("");
       records = filter(await getTasks(settings));
       pending = await getPendingTasks();
       renderRecords();
@@ -34118,7 +34123,6 @@
     $2("attachmentName").textContent = "";
   }
   function renderSettings() {
-    $2("period").textContent = settings.displayMode === "tasks" ? "\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 " + settings.tasksToShow + " \u0437\u0430\u0434\u0430\u0447" : "\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 " + settings.daysToShow + " \u0434\u043D.";
     const s = $2("type");
     s.innerHTML = "";
     settings.taskTypes.forEach((t) => {

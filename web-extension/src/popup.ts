@@ -141,12 +141,19 @@ function renderSchedule(){
 }
 function scheduledMoment(){return scheduledAt?new Date(scheduledAt):new Date();}
 
+/** Строка состояния подключения появляется только когда есть что сообщить: при обычной работе её нет. */
+function setConnection(text:string){
+  const element=$("connection");
+  element.textContent=text;
+  element.hidden=!text;
+}
+
 async function refresh(){
   clearError();
   $("refresh").setAttribute("disabled","");
   try{
-    if(!(await getToken())){$("connection").textContent="Яндекс Диск не подключён — подключение выполняется в Настройках";renderRecords();return;}
-    $("connection").textContent="Яндекс Диск подключён";
+    if(!(await getToken())){setConnection("Яндекс Диск не подключён — подключение выполняется в Настройках");renderRecords();return;}
+    setConnection("");
     records=filter(await getTasks(settings));
     pending=await getPendingTasks();
     renderRecords();
@@ -199,7 +206,6 @@ async function cancel(at:number|string){pending=pending.filter(x=>x.createdAt!==
 function clearForm(){($("task") as HTMLTextAreaElement).value="";setDifficulty(0);input("attachment").value="";$("attachmentName").textContent="";}
 
 function renderSettings(){
-  $("period").textContent=settings.displayMode==="tasks"?"Последние "+settings.tasksToShow+" задач":"Последние "+settings.daysToShow+" дн.";
   const s=$("type") as HTMLSelectElement;
   s.innerHTML="";
   settings.taskTypes.forEach(t=>{const o=document.createElement("option");o.value=t.code;o.textContent=t.code;s.append(o);});
