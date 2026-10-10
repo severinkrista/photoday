@@ -71,7 +71,8 @@ async function closeSession(now=Date.now()) {
   await persist();
 }
 async function beginSession(tab:any) {
-  if(!tab||typeof tab.id!=="number"||!browserFocused||idleState!=="active"||!tab.url||!/^https?:/i.test(tab.url))return;
+  const settings=await getAutoTrackSettings();
+  if(!settings.enabled||!tab||typeof tab.id!=="number"||!browserFocused||idleState!=="active"||!tab.url||!/^https?:/i.test(tab.url))return;
   const now=Date.now();
   state.active={tabId:tab.id,windowId:Number(tab.windowId)||-1,url:safeUrl(String(tab.url)),title:String(tab.title??""),openedAtMs:now,lastCheckpointAtMs:now};
   await persist();
@@ -129,11 +130,11 @@ async function ensurePath(path:string) {
     await ensureFolder(current);
   }
 }
-async function uploadDay(day:string) {
+async function uploadDay(day:string,force=false) {
   const records=(state.days[day]??[]).filter(x=>x.durationSeconds>MIN_DURATION_SECONDS);
   if(!records.length)return;
   const settings=await getAutoTrackSettings();
-  if(!settings.enabled)return;
+  if(!settings.enabled&&!force)return;
   const root=settings.rootPath.trim().replace(/\/+$/,"");
   const path=uploadPath(root,day);
   const autoFolder=path.slice(0,path.lastIndexOf("/"));
@@ -144,12 +145,12 @@ async function uploadDay(day:string) {
   const payload={date:day,generatedAt:new Date().toISOString(),minimumSessionSeconds:MIN_DURATION_SECONDS,records:[...records].sort((a,b)=>a.openedAt.localeCompare(b.openedAt))};
   await uploadAutotrackJson(path,JSON.stringify(payload,null,2));
 }
-export async function uploadAutotrackNow() {
+export async function uploadAutotrackNow(force=false) {
   await recordCurrent();
   await persist();
   const settings=await getAutoTrackSettings();
-  if(!settings.enabled)return;
-  for(const day of Object.keys(state.days).sort())await uploadDay(day);
+  if(!settings.enabled&&!force)return;
+  for(const day of Object.keys(state.days).sort())await uploadDay(day,force);
   state.lastUploadedAt=Date.now();
   state.lastError="";
   await persist();
@@ -162,6 +163,8 @@ export async function syncAutoTrackAlarm() {
   if(settings.enabled){
     a.alarms.create(ALARM,{delayInMinutes:settings.uploadEveryMinutes,periodInMinutes:settings.uploadEveryMinutes});
     a.alarms.create(CHECKPOINT_ALARM,{delayInMinutes:1,periodInMinutes:1});
+  } else {
+    await closeSession();
   }
 }
 export async function handleAutoTrackAlarm(name:string) {
