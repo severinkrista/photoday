@@ -1,6 +1,9 @@
 "use strict";
 (() => {
   // src/model.ts
+  function isHttpUrl(value) {
+    return /^https?:\/\/\S+$/i.test(value.trim());
+  }
   var DEFAULT_TASK_TYPES = [
     { code: "\u0423", description: "\u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0447\u0435\u0441\u043A\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
     { code: "\u0420", description: "\u0440\u0443\u0442\u0438\u043D\u0430, \u0440\u044F\u0434\u043E\u0432\u044B\u0435 \u0440\u0430\u0431\u043E\u0447\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" },
@@ -10,7 +13,8 @@
     { code: "\u0413\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438, \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0435 \u0441 \u0433\u043E\u0441\u0443\u0434\u0430\u0440\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u043C\u0438 \u043A\u043E\u043D\u043A\u0442\u0440\u0430\u043A\u0442\u0430\u043C\u0438" },
     { code: "\u041A\u041A", description: "\u0437\u0430\u0434\u0430\u0447\u0438 \u041A\u0440\u0438\u0441\u0442\u0430\u041A\u043E\u043C\u0430\u043D\u0434\u044B (\u0442\u0440\u0435\u043D\u0438\u043D\u0433\u0438 \u0432 \u043D\u0430\u0448\u0435\u0439 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438, \u0432\u044B\u0435\u0437\u0434\u043D\u044B\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F \u0438 \u0442.\u043F.)" }
   ];
-  var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES };
+  var DEFAULT_REMINDERS = { enabled: true, from: "09:00", to: "18:00", every: 1, unit: "hours" };
+  var DEFAULT_SETTINGS = { displayMode: "tasks", tasksToShow: 10, daysToShow: 2, diskPath: "disk:/\u041A\u0440\u0438\u0441\u0442\u0430/\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B/photoday/photoday.xlsx", taskTypes: DEFAULT_TASK_TYPES, reminders: DEFAULT_REMINDERS, fileUrl: "" };
 
   // src/storage.ts
   var storage = globalThis.browser?.storage?.local ?? globalThis.chrome?.storage?.local;
@@ -39,9 +43,27 @@
       tasksToShow: Number.isFinite(tasks) && tasks > 0 ? Math.floor(tasks) : DEFAULT_SETTINGS.tasksToShow,
       daysToShow: Number.isFinite(days) && days > 0 ? Math.floor(days) : DEFAULT_SETTINGS.daysToShow,
       diskPath: typeof s.diskPath === "string" && s.diskPath.trim() ? s.diskPath : DEFAULT_SETTINGS.diskPath,
-      taskTypes: Array.isArray(s.taskTypes) && s.taskTypes.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes.map((x) => ({ ...x }))
+      fileUrl: typeof s.fileUrl === "string" ? s.fileUrl.trim() : "",
+      taskTypes: Array.isArray(s.taskTypes) && s.taskTypes.length ? s.taskTypes : DEFAULT_SETTINGS.taskTypes.map((x) => ({ ...x })),
+      reminders: normalizeReminders(s.reminders)
     };
   }
+  function normalizeReminders(value) {
+    const clock = (v, fallback) => typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v.trim()) ? v.trim() : fallback;
+    const unit = value?.unit === "minutes" ? "minutes" : "hours";
+    const rawEvery = Number(value?.every);
+    const limit = unit === "minutes" ? 1440 : 24;
+    const every = Number.isFinite(rawEvery) && rawEvery >= 1 ? Math.min(Math.floor(rawEvery), limit) : DEFAULT_REMINDERS.every;
+    return {
+      enabled: typeof value?.enabled === "boolean" ? value.enabled : DEFAULT_REMINDERS.enabled,
+      from: clock(value?.from, DEFAULT_REMINDERS.from),
+      to: clock(value?.to, DEFAULT_REMINDERS.to),
+      every,
+      unit
+    };
+  }
+  var REMINDER_EVENT_KEY = "reminderEvent";
+  var ADD_ENTRY_TTL = 2 * 6e4;
   async function clearLocalData() {
     if (storage) {
       await storage.clear();
@@ -58,6 +80,12 @@
   async function saveToken(t) {
     await set("token", t);
   }
+  async function saveReminderEvent(event) {
+    await set(REMINDER_EVENT_KEY, event);
+  }
+  async function getReminderEvent() {
+    return get(REMINDER_EVENT_KEY, null);
+  }
 
   // src/yandex.ts
   var CLIENT_ID = "f4ce4570ab454ee38f6792c37e61811d";
@@ -71,14 +99,14 @@
     return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
   async function connectToYandex() {
-    const verifier = random(), state = random(32), url = new URL("https://oauth.yandex.ru/authorize");
+    const verifier = random(), state2 = random(32), url = new URL("https://oauth.yandex.ru/authorize");
     url.searchParams.set("response_type", "code");
     url.searchParams.set("client_id", CLIENT_ID);
     url.searchParams.set("redirect_uri", REDIRECT);
     url.searchParams.set("scope", SCOPE);
     url.searchParams.set("code_challenge", await challenge(verifier));
     url.searchParams.set("code_challenge_method", "S256");
-    url.searchParams.set("state", state);
+    url.searchParams.set("state", state2);
     url.searchParams.set("force_confirm", "yes");
     window.open(url.toString(), "_blank");
     const code = window.prompt("\u041F\u043E\u0441\u043B\u0435 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u0438 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0441\u044E\u0434\u0430 \u043A\u043E\u0434 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u044F \u042F\u043D\u0434\u0435\u043A\u0441 OAuth:");
@@ -117,16 +145,290 @@
     if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A: HTTP " + r.status + " " + await r.text());
     return (await r.json()).type === "dir";
   }
+  async function ensureFolder(path) {
+    const r = await api("https://cloud-api.yandex.net/v1/disk/resources?path=" + encodeURIComponent(path), { method: "PUT" });
+    if (r.ok) return;
+    if (r.status === 409 && await folderExists(path)) return;
+    throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0437\u0434\u0430\u0442\u044C \u043F\u0430\u043F\u043A\u0443 " + path + ": HTTP " + r.status + " " + await r.text());
+  }
   async function testConnection(s) {
     const b = await downloadWorkbook(s);
     if (!b.byteLength) throw new Error("\u041E\u0441\u043D\u043E\u0432\u043D\u043E\u0439 XLSX-\u0444\u0430\u0439\u043B \u043F\u0443\u0441\u0442\u043E\u0439.");
     const f = s.diskPath.substring(0, s.diskPath.lastIndexOf("/")) + "/attached";
     return { filePath: s.diskPath, attachmentFolder: f, attachmentFolderExists: await folderExists(f) };
   }
+  async function uploadAutotrackJson(path, content) {
+    const r = await api(await href("resources/upload", path, "&overwrite=true"), { method: "PUT", headers: { "Content-Type": "application/json; charset=utf-8" }, body: content });
+    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0430\u0432\u0442\u043E\u0442\u0440\u0435\u043A\u0438\u043D\u0433 \u0432 " + path + ": HTTP " + r.status + " " + await r.text());
+  }
+
+  // src/reminders.ts
+  var REMINDER_ALARM = "photoday-reminder";
+  var REMINDER_NOTIFICATION = "photoday-reminder";
+  function isReminderNotification(id) {
+    return String(id ?? "").startsWith(REMINDER_NOTIFICATION);
+  }
+  var NOTIFICATION_BUTTONS = [{ title: "\u041E\u041A" }, { title: "\u041E\u0442\u043C\u0435\u043D\u0430" }];
+  function extensionApi() {
+    const scope = globalThis;
+    return scope.browser ?? scope.chrome ?? null;
+  }
+  function errorText(error) {
+    if (error instanceof Error) return error.message;
+    const text = String(error ?? "");
+    return text && text !== "undefined" ? text : "\u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430";
+  }
+  function trace(message, ...details) {
+    try {
+      console.info("[photoday] " + message, ...details);
+    } catch (e) {
+    }
+  }
+  function periodMinutes(reminders) {
+    const every = Math.max(1, Math.floor(reminders.every || 1));
+    return reminders.unit === "minutes" ? every : every * 60;
+  }
+  function reminderSummary(reminders) {
+    if (!reminders.enabled) return "\u041D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u044B.";
+    const every = reminders.unit === "hours" ? reminders.every + " \u0447" : reminders.every + " \u043C\u0438\u043D";
+    const range = reminders.from === reminders.to ? "\u0432\u0435\u0441\u044C \u0434\u0435\u043D\u044C" : reminders.from + "\u2013" + reminders.to;
+    return "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043A\u0430\u0436\u0434\u044B\u0435 " + every + ", " + range + ".";
+  }
+  async function syncReminderAlarm() {
+    const api3 = extensionApi();
+    if (!api3?.alarms) return;
+    const settings2 = await getSettings();
+    const period = periodMinutes(settings2.reminders);
+    const existing = await Promise.resolve(api3.alarms.get(REMINDER_ALARM)).catch(() => null);
+    if (!settings2.reminders.enabled) {
+      if (existing) await Promise.resolve(api3.alarms.clear(REMINDER_ALARM)).catch(() => void 0);
+      return;
+    }
+    if (existing && Number(existing.periodInMinutes) === period) return;
+    await Promise.resolve(api3.alarms.clear(REMINDER_ALARM)).catch(() => void 0);
+    api3.alarms.create(REMINDER_ALARM, { delayInMinutes: period, periodInMinutes: period });
+  }
+  async function platformOs() {
+    const api3 = extensionApi();
+    if (!api3?.runtime?.getPlatformInfo) return "";
+    try {
+      const info = await Promise.resolve(api3.runtime.getPlatformInfo());
+      return String(info?.os ?? "");
+    } catch (e) {
+      return "";
+    }
+  }
+  async function notificationPermission() {
+    const api3 = extensionApi();
+    if (!api3?.notifications?.getPermissionLevel) return "granted";
+    try {
+      const level = await Promise.resolve(api3.notifications.getPermissionLevel());
+      return typeof level === "string" ? level : "granted";
+    } catch (e) {
+      return "granted";
+    }
+  }
+  async function activeReminderNotifications() {
+    const api3 = extensionApi();
+    if (!api3?.notifications?.getAll) return null;
+    try {
+      const all = await Promise.resolve(api3.notifications.getAll());
+      return Object.keys(all ?? {}).filter(isReminderNotification).length;
+    } catch (e) {
+      return null;
+    }
+  }
+  async function showReminder() {
+    const api3 = extensionApi();
+    if (!api3?.notifications) throw new Error("\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0432 \u044D\u0442\u043E\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.");
+    const id = `${REMINDER_NOTIFICATION}-${Date.now()}`;
+    const holdOnScreen = await platformOs() !== "mac";
+    const iconUrl = api3.runtime?.getURL ? api3.runtime.getURL("icons/icon128.png") : "icons/icon128.png";
+    await new Promise((resolve) => {
+      try {
+        api3.notifications.create(id, {
+          type: "basic",
+          iconUrl,
+          title: "\u0424\u043E\u0442\u043E \u0434\u043D\u044F",
+          message: "\u041E\u043F\u0438\u0448\u0438\u0442\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438, \u043F\u043E\u043A\u0430 \u043D\u0435 \u0437\u0430\u0431\u044B\u043B\u0438, \u0447\u0442\u043E \u0431\u044B\u043B\u043E \u0441\u0434\u0435\u043B\u0430\u043D\u043E.",
+          contextMessage: "\xAB\u041E\u041A\xBB \u2014 \u0444\u043E\u0440\u043C\u0430 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438; \u043C\u043E\u0436\u043D\u043E \u043F\u0440\u043E\u0441\u0442\u043E \u043D\u0430\u0436\u0430\u0442\u044C \u043D\u0430 \u044D\u0442\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435.",
+          buttons: NOTIFICATION_BUTTONS,
+          requireInteraction: holdOnScreen,
+          priority: 2
+        }, () => {
+          void api3.runtime?.lastError;
+          resolve();
+        });
+      } catch (e) {
+        trace("\u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435", errorText(e));
+        resolve();
+      }
+    });
+    trace("\u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435", id);
+    await saveReminderEvent({ kind: "shown", at: Date.now(), notificationId: id, action: "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E, \u0436\u0434\u0451\u043C \u043D\u0430\u0436\u0430\u0442\u0438\u044F." });
+    return id;
+  }
+
+  // src/autotrack-storage.ts
+  var SETTINGS_KEY = "autotrackSettings";
+  var STATE_KEY = "autotrackJson";
+  var DEFAULT_SETTINGS2 = { enabled: true, uploadEveryMinutes: 60, rootPath: "disk:/\u0418\u0442\u043E\u0433\u0438 \u0434\u043D\u044F" };
+  function storage2() {
+    const g = globalThis;
+    return (g.browser ?? g.chrome)?.storage?.local ?? null;
+  }
+  async function get2(key, fallback) {
+    const s = storage2();
+    if (s?.get) {
+      const value = await Promise.resolve(s.get(key));
+      return value?.[key] ?? fallback;
+    }
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  async function set2(key, value) {
+    const s = storage2();
+    if (s?.set) {
+      await Promise.resolve(s.set({ [key]: value }));
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+  async function getAutoTrackSettings() {
+    const value = await get2(SETTINGS_KEY, {});
+    const interval = Number(value.uploadEveryMinutes);
+    return {
+      enabled: typeof value.enabled === "boolean" ? value.enabled : DEFAULT_SETTINGS2.enabled,
+      uploadEveryMinutes: Number.isFinite(interval) && interval >= 5 ? Math.min(1440, Math.floor(interval)) : DEFAULT_SETTINGS2.uploadEveryMinutes,
+      rootPath: typeof value.rootPath === "string" && value.rootPath.trim() ? value.rootPath.trim() : DEFAULT_SETTINGS2.rootPath
+    };
+  }
+  async function saveAutoTrackSettings(value) {
+    const interval = Number(value.uploadEveryMinutes);
+    if (!Number.isFinite(interval) || interval < 5 || interval > 1440) throw new Error("\u0418\u043D\u0442\u0435\u0440\u0432\u0430\u043B \u0430\u0432\u0442\u043E\u0442\u0440\u0435\u043A\u0438\u043D\u0433\u0430 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043E\u0442 5 \u0434\u043E 1440 \u043C\u0438\u043D\u0443\u0442.");
+    if (!value.rootPath.trim()) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0430\u043F\u043A\u0443 \xAB\u0418\u0442\u043E\u0433\u0438 \u0434\u043D\u044F\xBB \u043D\u0430 \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0435.");
+    await set2(SETTINGS_KEY, { enabled: !!value.enabled, uploadEveryMinutes: Math.floor(interval), rootPath: value.rootPath.trim() });
+  }
+  async function getAutoTrackState() {
+    return get2(STATE_KEY, { days: {}, active: null });
+  }
+  async function saveAutoTrackState(value) {
+    await set2(STATE_KEY, value);
+  }
+
+  // src/autotrack.ts
+  var ALARM = "photoday-autotrack-upload";
+  var CHECKPOINT_ALARM = "photoday-autotrack-checkpoint";
+  var MIN_DURATION_SECONDS = 180;
+  var initialized = false;
+  var state = { days: {}, active: null };
+  var queue = Promise.resolve();
+  var initialization = Promise.resolve();
+  function api2() {
+    const g = globalThis;
+    return g.browser ?? g.chrome ?? null;
+  }
+  function localDay(ms) {
+    const d = new Date(ms);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  async function persist() {
+    await saveAutoTrackState(state);
+  }
+  async function recordCurrent(now = Date.now()) {
+    const current = state.active;
+    if (!current) return;
+    const record = {
+      url: current.url,
+      title: current.title,
+      openedAt: new Date(current.openedAtMs).toISOString(),
+      durationSeconds: Math.max(0, Math.floor((now - current.openedAtMs) / 1e3))
+    };
+    const day = localDay(current.openedAtMs);
+    const records = state.days[day] ?? (state.days[day] = []);
+    const existing = records.findIndex((x) => x.openedAt === record.openedAt && x.url === record.url);
+    if (existing >= 0) records[existing] = record;
+    else records.push(record);
+  }
+  async function closeSession(now = Date.now()) {
+    if (!state.active) return;
+    await recordCurrent(now);
+    state.active = null;
+    await persist();
+  }
+  function uploadPath(root, day) {
+    return root.replace(/\/+$/, "") + "/" + day + "/autotrack/autotrack.json";
+  }
+  async function ensurePath(path) {
+    const normalized = path.trim().replace(/^disk:/i, "").replace(/^\/+|\/+$/g, "");
+    let current = "disk:/";
+    for (const segment of normalized.split("/").filter(Boolean)) {
+      current += (current.endsWith("/") ? "" : "/") + segment;
+      await ensureFolder(current);
+    }
+  }
+  async function uploadDay(day, force = false) {
+    const records = (state.days[day] ?? []).filter((x) => x.durationSeconds > MIN_DURATION_SECONDS);
+    if (!records.length) return;
+    const settings2 = await getAutoTrackSettings();
+    if (!settings2.enabled && !force) return;
+    const root = settings2.rootPath.trim().replace(/\/+$/, "");
+    const path = uploadPath(root, day);
+    const autoFolder = path.slice(0, path.lastIndexOf("/"));
+    const dateFolder = autoFolder.slice(0, autoFolder.lastIndexOf("/"));
+    await ensurePath(root);
+    await ensureFolder(dateFolder);
+    await ensureFolder(autoFolder);
+    const payload = { date: day, generatedAt: (/* @__PURE__ */ new Date()).toISOString(), minimumSessionSeconds: MIN_DURATION_SECONDS, records: [...records].sort((a, b) => a.openedAt.localeCompare(b.openedAt)) };
+    await uploadAutotrackJson(path, JSON.stringify(payload, null, 2));
+  }
+  async function uploadAutotrackNow(force = false) {
+    if (!initialized) {
+      const saved = await getAutoTrackState();
+      state = { days: saved.days ?? {}, active: saved.active ?? null, lastUploadedAt: saved.lastUploadedAt, lastError: saved.lastError };
+    }
+    await recordCurrent();
+    await persist();
+    const settings2 = await getAutoTrackSettings();
+    if (!settings2.enabled && !force) return;
+    for (const day of Object.keys(state.days).sort()) await uploadDay(day, force);
+    state.lastUploadedAt = Date.now();
+    state.lastError = "";
+    await persist();
+  }
+  async function syncAutoTrackAlarm() {
+    const a = api2();
+    if (!a?.alarms) return;
+    const settings2 = await getAutoTrackSettings();
+    if (!settings2.enabled && !initialized) {
+      const saved = await getAutoTrackState();
+      state = { days: saved.days ?? {}, active: saved.active ?? null, lastUploadedAt: saved.lastUploadedAt, lastError: saved.lastError };
+    }
+    try {
+      await Promise.resolve(a.alarms.clear(ALARM));
+    } catch {
+    }
+    try {
+      await Promise.resolve(a.alarms.clear(CHECKPOINT_ALARM));
+    } catch {
+    }
+    if (settings2.enabled) {
+      a.alarms.create(ALARM, { delayInMinutes: settings2.uploadEveryMinutes, periodInMinutes: settings2.uploadEveryMinutes });
+      a.alarms.create(CHECKPOINT_ALARM, { delayInMinutes: 1, periodInMinutes: 1 });
+    } else {
+      await closeSession();
+    }
+  }
 
   // src/settings.ts
   var settings;
+  var autotrackSettings;
   var $ = (id) => document.getElementById(id);
+  var input = (id) => $(id);
   async function bindClick(id, handler) {
     const el = $(id);
     if (el) el.onclick = handler;
@@ -134,6 +436,7 @@
   async function init() {
     try {
       settings = await getSettings();
+      autotrackSettings = await getAutoTrackSettings();
       render();
       bindClick("save", () => void save());
       bindClick("connect", () => void connect());
@@ -144,6 +447,15 @@
         settings.taskTypes.push({ code: "\u041D\u043E\u0432\u044B\u0439", description: "" });
         render();
       });
+      bindClick("testReminder", () => void testReminder());
+      bindClick("autotrackUploadNow", () => void uploadAutotrack());
+      window.addEventListener("focus", () => void renderNotificationDiagnostics());
+      try {
+        extensionApi()?.storage?.onChanged?.addListener((changes) => {
+          if (changes && REMINDER_EVENT_KEY in changes) void renderNotificationDiagnostics();
+        });
+      } catch (e) {
+      }
       $("modeTasks").onchange = () => {
         syncDisplayValue();
         syncTypesFromDom();
@@ -156,13 +468,17 @@
         settings.displayMode = "days";
         render();
       };
+      for (const id of ["remindersEnabled", "remindersFrom", "remindersTo", "remindersEvery", "remindersUnit"]) {
+        $(id).addEventListener("change", updateReminderSummary);
+        $(id).addEventListener("input", updateReminderSummary);
+      }
     } catch (e) {
       const status = $("status");
       if (status) status.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A: " + (e instanceof Error ? e.message : String(e));
     }
   }
   function syncDisplayValue() {
-    const n = Math.max(1, Number($("tasks").value) || 1);
+    const n = Math.max(1, Number(input("tasks").value) || 1);
     if (settings.displayMode === "tasks") settings.tasksToShow = n;
     else settings.daysToShow = n;
   }
@@ -171,12 +487,15 @@
     settings.taskTypes = Array.from(document.querySelectorAll(".type-row")).map((r) => ({ code: r.querySelector('[data-role="code"]').value.trim(), description: r.querySelector('[data-role="description"]').value.trim() }));
   }
   function render() {
-    $("diskPath").setAttribute("value", settings.diskPath);
-    $("diskPath").value = settings.diskPath;
+    input("diskPath").value = settings.diskPath;
+    input("autotrackEnabled").checked = autotrackSettings.enabled;
+    input("autotrackRootPath").value = autotrackSettings.rootPath;
+    input("autotrackEveryMinutes").value = String(autotrackSettings.uploadEveryMinutes);
+    input("fileUrl").value = settings.fileUrl ?? "";
     const n = settings.displayMode === "tasks" ? settings.tasksToShow : settings.daysToShow;
-    $("tasks").value = String(n);
-    $("modeTasks").checked = settings.displayMode === "tasks";
-    $("modeDays").checked = settings.displayMode === "days";
+    input("tasks").value = String(n);
+    input("modeTasks").checked = settings.displayMode === "tasks";
+    input("modeDays").checked = settings.displayMode === "days";
     $("displayNumberLabel").textContent = settings.displayMode === "tasks" ? "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0437\u0430\u0434\u0430\u0447" : "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0434\u043D\u0435\u0439";
     const root = $("types");
     root.innerHTML = "";
@@ -201,27 +520,114 @@
       row.append(code, desc, del);
       root.append(row);
     });
+    renderReminders();
+    void renderNotificationDiagnostics();
+  }
+  function describeEvent(event) {
+    if (!event) return "\u0421\u043E\u0431\u044B\u0442\u0438\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435 \u0431\u044B\u043B\u043E.";
+    const time = new Date(event.at).toLocaleTimeString();
+    const what = event.kind === "button" ? `\u043D\u0430\u0436\u0430\u0442\u0430 \u043A\u043D\u043E\u043F\u043A\u0430 \xAB${event.button}\xBB` : event.kind === "body" ? "\u043D\u0430\u0436\u0430\u0442\u043E \u0441\u0430\u043C\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435" : event.kind === "closed" ? "\u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E" : "\u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E";
+    return `${time} \u2014 ${what}. ${event.action}${event.error ? " \u041F\u0440\u0438\u0447\u0438\u043D\u0430: " + event.error + "." : ""}`;
+  }
+  var diagnosticsTimer;
+  function scheduleDiagnosticsRefresh(event) {
+    if (diagnosticsTimer !== void 0) clearTimeout(diagnosticsTimer);
+    if (event?.kind !== "shown") return;
+    const wait = Math.max(0, 5e3 - (Date.now() - event.at)) + 300;
+    diagnosticsTimer = window.setTimeout(() => void renderNotificationDiagnostics(), wait);
+  }
+  async function renderNotificationDiagnostics() {
+    const box = $("notificationDiag");
+    if (!box) return;
+    const level = await notificationPermission();
+    const active = await activeReminderNotifications();
+    const event = await getReminderEvent();
+    const permission = level === "granted" ? "\u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u0435 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430 \u0432\u044B\u0434\u0430\u043D\u043E" : level === "denied" ? "\u0431\u0440\u0430\u0443\u0437\u0435\u0440 \u0437\u0430\u043F\u0440\u0435\u0442\u0438\u043B \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F" : "\u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u0435 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430 \u043D\u0435 \u0432\u044B\u0434\u0430\u043D\u043E";
+    const shown = active === null ? "" : ` \u0421\u0435\u0439\u0447\u0430\u0441 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0439: ${active}.`;
+    const stuck = event?.kind === "shown" && Date.now() - event.at > 5e3;
+    const hint = stuck ? " \u041D\u0430\u0436\u0430\u0442\u0438\u0435 \u043A\u043D\u043E\u043F\u043A\u0438 \u0434\u043E \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F \u043D\u0435 \u0434\u043E\u0448\u043B\u043E: \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u0441\u0430\u043C\u043E \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u2014 \u0444\u043E\u0440\u043C\u0430 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438 \u043E\u0442\u043A\u0440\u043E\u0435\u0442\u0441\u044F. \u041D\u0430 macOS \u043A\u043D\u043E\u043F\u043A\u0438 \u0431\u044B\u0432\u0430\u044E\u0442 \u0432\u0438\u0434\u043D\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u0438 \u0441\u0442\u0438\u043B\u0435 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0439 \xAB\u041E\u043F\u043E\u0432\u0435\u0449\u0435\u043D\u0438\u044F\xBB." : "";
+    box.textContent = `${permission}.${shown} \u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0435\u0435 \u0441\u043E\u0431\u044B\u0442\u0438\u0435: ${describeEvent(event)}${hint}`;
+    scheduleDiagnosticsRefresh(event);
+  }
+  function renderReminders() {
+    const r = settings.reminders;
+    input("remindersEnabled").checked = r.enabled;
+    input("remindersFrom").value = r.from;
+    input("remindersTo").value = r.to;
+    input("remindersEvery").value = String(r.every);
+    $("remindersUnit").value = r.unit;
+    $("reminderStatus").textContent = "";
+    updateReminderSummary();
+  }
+  function remindersFromForm() {
+    const enabled = input("remindersEnabled").checked;
+    const from = input("remindersFrom").value.trim();
+    const to = input("remindersTo").value.trim();
+    const unit = $("remindersUnit").value === "minutes" ? "minutes" : "hours";
+    const every = Number(input("remindersEvery").value);
+    if (enabled && (!from || !to)) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0432\u0440\u0435\u043C\u044F \xAB\u0421\xBB \u0438 \xAB\u0414\u043E\xBB \u0434\u043B\u044F \u0434\u0438\u0430\u043F\u0430\u0437\u043E\u043D\u0430 \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0439.");
+    if (!Number.isFinite(every) || every < 1) throw new Error("\u0427\u0430\u0441\u0442\u043E\u0442\u0430 \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0439 \u0434\u043E\u043B\u0436\u043D\u0430 \u0431\u044B\u0442\u044C \u043D\u0435 \u043C\u0435\u043D\u044C\u0448\u0435 1.");
+    const limit = unit === "minutes" ? 1440 : 24;
+    if (Math.floor(every) > limit) throw new Error(unit === "minutes" ? "\u0414\u043B\u044F \u043C\u0438\u043D\u0443\u0442 \u0447\u0430\u0441\u0442\u043E\u0442\u0430 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u043F\u0440\u0435\u0432\u044B\u0448\u0430\u0442\u044C 1440." : "\u0414\u043B\u044F \u0447\u0430\u0441\u043E\u0432 \u0447\u0430\u0441\u0442\u043E\u0442\u0430 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u043F\u0440\u0435\u0432\u044B\u0448\u0430\u0442\u044C 24.");
+    return { enabled, from: from || "09:00", to: to || "18:00", every: Math.floor(every), unit };
+  }
+  function updateReminderSummary() {
+    try {
+      $("reminderSummary").textContent = reminderSummary(remindersFromForm());
+    } catch (e) {
+      $("reminderSummary").textContent = e instanceof Error ? e.message : String(e);
+    }
   }
   function collectSettings() {
     syncDisplayValue();
     syncTypesFromDom();
-    const diskPath = $("diskPath").value.trim();
-    const tasksToShow = Math.max(1, Number($("tasks").value) || 10);
+    const diskPath = input("diskPath").value.trim();
+    const fileUrl = input("fileUrl")?.value.trim() ?? "";
+    const tasksToShow = Math.max(1, Number(input("tasks").value) || 10);
     const daysToShow = Math.max(1, settings.daysToShow || 2);
-    const displayMode = $("modeDays").checked ? "days" : "tasks";
+    const displayMode = input("modeDays").checked ? "days" : "tasks";
     const taskTypes = settings.taskTypes.map((t) => ({ code: t.code.trim(), description: t.description.trim() }));
+    const reminders = remindersFromForm();
     if (!diskPath) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A XLSX.");
+    if (fileUrl && !isHttpUrl(fileUrl)) throw new Error("\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u0444\u0430\u0439\u043B \u0434\u043E\u043B\u0436\u043D\u0430 \u043D\u0430\u0447\u0438\u043D\u0430\u0442\u044C\u0441\u044F \u0441 http:// \u0438\u043B\u0438 https://.");
     if (!taskTypes.length) throw new Error("\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u0442\u0438\u043F \u0437\u0430\u0434\u0430\u0447\u0438.");
     if (taskTypes.some((t) => !t.code)) throw new Error("\u0423 \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u0442\u0438\u043F\u0430 \u0437\u0430\u0434\u0430\u0447\u0438 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0443\u043A\u0430\u0437\u0430\u043D \u043A\u043E\u0434.");
     const codes = taskTypes.map((t) => t.code.toLocaleLowerCase());
     if (new Set(codes).size !== codes.length) throw new Error("\u041A\u043E\u0434\u044B \u0442\u0438\u043F\u043E\u0432 \u0437\u0430\u0434\u0430\u0447 \u043D\u0435 \u0434\u043E\u043B\u0436\u043D\u044B \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0442\u044C\u0441\u044F.");
-    return { displayMode, tasksToShow: displayMode === "tasks" ? tasksToShow : settings.tasksToShow, daysToShow: displayMode === "days" ? tasksToShow : daysToShow, diskPath, taskTypes };
+    return { displayMode, tasksToShow: displayMode === "tasks" ? tasksToShow : settings.tasksToShow, daysToShow: displayMode === "days" ? tasksToShow : daysToShow, diskPath, taskTypes, reminders, fileUrl };
+  }
+  function collectAutoTrackSettings() {
+    const enabled = input("autotrackEnabled").checked;
+    const rootPath = input("autotrackRootPath").value.trim();
+    const uploadEveryMinutes = Number(input("autotrackEveryMinutes").value);
+    if (!rootPath) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0430\u043F\u043A\u0443 \xAB\u0418\u0442\u043E\u0433\u0438 \u0434\u043D\u044F\xBB \u043D\u0430 \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0435.");
+    if (!Number.isFinite(uploadEveryMinutes) || uploadEveryMinutes < 5 || uploadEveryMinutes > 1440) throw new Error("\u0418\u043D\u0442\u0435\u0440\u0432\u0430\u043B \u0430\u0432\u0442\u043E\u0442\u0440\u0435\u043A\u0438\u043D\u0433\u0430 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043E\u0442 5 \u0434\u043E 1440 \u043C\u0438\u043D\u0443\u0442.");
+    return { enabled, rootPath, uploadEveryMinutes: Math.floor(uploadEveryMinutes) };
+  }
+  async function uploadAutotrack() {
+    const button = $("autotrackUploadNow");
+    button.disabled = true;
+    $("autotrackStatus").textContent = "\u041F\u0435\u0440\u0435\u0434\u0430\u0451\u043C \u043D\u0430\u043A\u043E\u043F\u043B\u0435\u043D\u043D\u044B\u0435 \u0441\u0435\u0430\u043D\u0441\u044B...";
+    try {
+      autotrackSettings = collectAutoTrackSettings();
+      await saveAutoTrackSettings(autotrackSettings);
+      await syncAutoTrackAlarm();
+      await uploadAutotrackNow(true);
+      $("autotrackStatus").textContent = "\u041F\u0435\u0440\u0435\u0434\u0430\u0447\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430. \u0412 JSON \u0432\u043A\u043B\u044E\u0447\u0430\u044E\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0441\u0435\u0430\u043D\u0441\u044B \u0434\u043E\u043B\u044C\u0448\u0435 3 \u043C\u0438\u043D\u0443\u0442.";
+    } catch (e) {
+      $("autotrackStatus").textContent = "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0435\u0440\u0435\u0434\u0430\u0442\u044C \u0430\u0432\u0442\u043E\u0442\u0440\u0435\u043A\u0438\u043D\u0433: " + (e instanceof Error ? e.message : String(e));
+    } finally {
+      button.disabled = false;
+    }
   }
   async function clearCache() {
     if (!confirm("\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F? \u0411\u0443\u0434\u0443\u0442 \u0443\u0434\u0430\u043B\u0435\u043D\u044B \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438, \u0442\u043E\u043A\u0435\u043D \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0430 \u0438 \u043E\u0447\u0435\u0440\u0435\u0434\u044C \u043D\u0435\u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043D\u044B\u0445 \u0437\u0430\u0434\u0430\u0447. \u0414\u0430\u043D\u043D\u044B\u0435 \u0432 XLSX \u043D\u0430 \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0435 \u043D\u0435 \u0443\u0434\u0430\u043B\u044F\u044E\u0442\u0441\u044F.")) return;
     try {
       await clearLocalData();
       settings = await getSettings();
+      autotrackSettings = await getAutoTrackSettings();
+      await syncReminderAlarm();
+      await syncAutoTrackAlarm();
       render();
       $("connectionStatus").textContent = "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0441\u0431\u0440\u043E\u0448\u0435\u043D\u044B. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u0437\u0430\u043D\u043E\u0432\u043E \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438.";
       $("testResult").textContent = "";
@@ -233,10 +639,38 @@
   async function save() {
     try {
       settings = collectSettings();
+      autotrackSettings = collectAutoTrackSettings();
       await saveSettings(settings);
+      await saveAutoTrackSettings(autotrackSettings);
+      await syncReminderAlarm();
+      await syncAutoTrackAlarm();
+      updateReminderSummary();
       $("status").textContent = "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B.";
+      $("reminderStatus").textContent = "\u0420\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0439 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E. " + reminderSummary(settings.reminders);
     } catch (e) {
       $("status").textContent = "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438: " + (e instanceof Error ? e.message : String(e));
+    }
+  }
+  async function testReminder() {
+    const button = $("testReminder");
+    button.disabled = true;
+    $("reminderStatus").textContent = "\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u043C \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435...";
+    try {
+      settings = { ...settings, reminders: remindersFromForm() };
+      await saveSettings(settings);
+      await syncReminderAlarm();
+      const level = await notificationPermission();
+      if (level === "denied") {
+        $("reminderStatus").textContent = "\u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u0437\u0430\u043F\u0440\u0435\u0442\u0438\u043B \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F: \u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u0435 \u0438\u0445 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 Chrome \u0438 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u0441\u0438\u0441\u0442\u0435\u043C\u044B.";
+        return;
+      }
+      await showReminder();
+      $("reminderStatus").textContent = "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E. \xAB\u041E\u041A\xBB \u043E\u0442\u043A\u0440\u043E\u0435\u0442 \u0444\u043E\u0440\u043C\u0443 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u043F\u0438\u0441\u0438, \xAB\u041E\u0442\u043C\u0435\u043D\u0430\xBB \u043F\u0440\u043E\u0441\u0442\u043E \u0437\u0430\u043A\u0440\u043E\u0435\u0442 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435.";
+      await renderNotificationDiagnostics();
+    } catch (e) {
+      $("reminderStatus").textContent = "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435: " + (e instanceof Error ? e.message : String(e));
+    } finally {
+      button.disabled = false;
     }
   }
   async function connect() {

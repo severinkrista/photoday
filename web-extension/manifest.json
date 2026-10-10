@@ -1,20 +1,43 @@
 {
-  "manifest_version":3,
-  "name":"Фото дня",
-  "version":"0.2.3",
-  "description":"Фиксация выполненных задач с хранением в photoday.xlsx на Яндекс Диске.",
-  "permissions":["storage","unlimitedStorage"],
-  "host_permissions":[
-    "https://cloud-api.yandex.net/*","https://oauth.yandex.ru/*",
+  "manifest_version": 3,
+  "name": "Фото дня",
+  "version": "1.0.0",
+  "description": "Фиксация выполненных задач в photoday.xlsx на Яндекс Диске, напоминания и аналитика по таблице.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "idle",
+    "unlimitedStorage",
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://cloud-api.yandex.net/*",
+    "https://oauth.yandex.ru/*",
     "https://*.disk.yandex.net/*",
     "https://*.storage.yandex.net/*"
   ],
-  "action":{
-    "default_title":"Фото дня",
-    "default_popup":"popup.html"
+  "background": {
+    "service_worker": "background.js"
   },
-  "options_ui":{
-    "page":"settings.html",
-    "open_in_tab":true
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Фото дня",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "settings.html",
+    "open_in_tab": true
   }
 }

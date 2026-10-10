@@ -14,6 +14,7 @@ import ru.krista.photoday.data.TaskTypeDefinition
 import ru.krista.photoday.data.YandexOAuthClient
 import ru.krista.photoday.data.YandexTaskRepository
 import ru.krista.photoday.data.YandexTokenStore
+import ru.krista.photoday.domain.TaskMoment
 import ru.krista.photoday.domain.TaskRecord
 import java.time.LocalDate
 import java.time.LocalTime
@@ -199,7 +200,18 @@ class MainViewModel(
         }
     }
 
-    fun addTask(type: String, difficulty: Int, text: String, attachmentUri: Uri?) {
+    /**
+     * Дата и время передаются из формы: так можно внести задачу задним числом,
+     * если она не была зафиксирована сразу.
+     */
+    fun addTask(
+        type: String,
+        difficulty: Int,
+        text: String,
+        attachmentUri: Uri?,
+        date: LocalDate = LocalDate.now(),
+        time: LocalTime = LocalTime.now()
+    ) {
         if (text.isBlank()) return
         viewModelScope.launch {
             val localAttachment = attachmentUri?.let { uri ->
@@ -208,15 +220,15 @@ class MainViewModel(
                     return@launch
                 }
             }
-            val date = LocalDate.now()
-            val time = LocalTime.now().withSecond(0).withNano(0)
-            val target = localAttachment?.let { repository.attachmentTarget(date, it.originalName) }
+            val taskDate = date
+            val taskTime = time.withSecond(0).withNano(0)
+            val target = localAttachment?.let { repository.attachmentTarget(taskDate, it.originalName) }
             val task = TaskRecord(
                 id = UUID.randomUUID().toString(),
-                date = date,
-                time = time,
-                weekday = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")[date.dayOfWeek.value - 1],
-                partOfDay = partOfDay(time),
+                date = taskDate,
+                time = taskTime,
+                weekday = TaskMoment.weekday(taskDate),
+                partOfDay = TaskMoment.partOfDay(taskTime),
                 taskType = type,
                 task = text.trim(),
                 difficulty = difficulty,
@@ -301,13 +313,5 @@ class MainViewModel(
                 sendingIds.remove(id)
             }
         }
-    }
-
-    private fun partOfDay(time: LocalTime): String = when (time.hour) {
-        in 0..7 -> "До начала рабочего дня"
-        in 8..11 -> "Утро"
-        in 12..14 -> "Обед"
-        in 15..17 -> "Вечер"
-        else -> "После конца рабочего дня"
     }
 }

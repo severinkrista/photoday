@@ -1,1 +1,68 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Фото дня</title><link rel="stylesheet" href="style.css"></head><body class="popup"><header><div><h1>Фото дня</h1><div id="period" class="muted"></div></div><button id="openSettings" title="Настройки">⚙</button></header><div id="connection" class="status"></div><div id="error" class="error" hidden></div><section class="add-card"><div class="section-title">Новая задача</div><div class="row"><select id="type"></select><div class="difficulty-picker" aria-label="Сложность от 1 до 5"><button id="difficulty-1" type="button" aria-label="1 звезда">★</button><button id="difficulty-2" type="button" aria-label="2 звезды">★</button><button id="difficulty-3" type="button" aria-label="3 звезды">★</button><button id="difficulty-4" type="button" aria-label="4 звезды">★</button><button id="difficulty-5" type="button" aria-label="5 звезд">★</button></div></div><textarea id="task" rows="4" placeholder="Описание задачи"></textarea><label class="file"><input id="attachment" type="file" accept="image/*">＋ Фото / скриншот <span id="attachmentName"></span></label><button id="add" class="primary">Сохранить</button></section><div class="records-heading"><strong>Предыдущие задачи</strong><span id="recordsCount" class="muted"></span></div><div class="records-scroll"><section id="records" class="records"></section><section id="pending"></section></div><footer><button id="refresh">Обновить</button></footer><script src="popup.js"></script></body></html>
+<!doctype html>
+<html lang="ru">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Фото дня</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="popup">
+  <header>
+    <h1>Фото дня</h1>
+    <div class="header-actions"><button id="openFile" title="Открыть таблицу">📄</button><button id="openAnalytics" title="Аналитика">📊</button><button id="openSettings" title="Настройки">⚙</button></div>
+  </header>
+  <div id="connection" class="status" hidden></div>
+  <div id="error" class="error" hidden></div>
+  <div id="notice" class="notice" hidden></div>
+  <section class="add-card">
+    <div class="row types-row">
+      <div id="typeChips" class="type-chips" role="group" aria-label="Вид задачи"></div>
+      <select id="typeMore" class="type-more" aria-label="Остальные виды задач" hidden></select>
+      <div class="difficulty-picker" aria-label="Сложность от 1 до 5">
+        <button id="difficulty-1" type="button" aria-label="1 звезда">★</button>
+        <button id="difficulty-2" type="button" aria-label="2 звезды">★</button>
+        <button id="difficulty-3" type="button" aria-label="3 звезды">★</button>
+        <button id="difficulty-4" type="button" aria-label="4 звезды">★</button>
+        <button id="difficulty-5" type="button" aria-label="5 звезд">★</button>
+      </div>
+    </div>
+    <textarea id="task" rows="3" placeholder="Описание задачи"></textarea>
+    <div class="compose-actions">
+      <button id="add" class="primary">Сохранить</button>
+      <button id="scheduleToggle" type="button" class="schedule-toggle" aria-expanded="false" aria-controls="scheduleEditor"
+        aria-label="Дата и время записи" title="Дата и время записи. По умолчанию — текущий момент.">
+        <span aria-hidden="true">🗓</span><strong id="scheduleValue">сейчас</strong>
+      </button>
+      <label class="file" title="Прикрепить фото или скриншот">
+        <input id="attachment" type="file" accept="image/*" aria-label="Прикрепить фото или скриншот">
+        <span aria-hidden="true">＋</span> Фото<span id="attachmentName" class="muted"></span>
+      </label>
+    </div>
+    <div id="scheduleEditor" class="schedule-editor" hidden>
+      <div class="schedule-grid">
+        <label>Дата<input id="scheduleDate" type="date"></label>
+        <label>Время<input id="scheduleTime" type="time"></label>
+      </div>
+      <div class="schedule-quick">
+        <button id="scheduleNow" type="button">Сейчас</button>
+        <button id="scheduleToday" type="button">Сегодня</button>
+        <button id="scheduleYesterday" type="button">Вчера</button>
+        <button id="scheduleDone" type="button" class="primary">Готово</button>
+      </div>
+      <div class="muted">Задним числом: укажите прошедшие дату и время — запись уйдёт в таблицу с этой отметкой.</div>
+    </div>
+  </section>
+  <div class="records-heading"><strong>Предыдущие задачи</strong><span id="recordsCount" class="muted"></span></div>
+  <div class="records-scroll">
+    <section id="records" class="records"></section>
+    <section id="pending"></section>
+  </div>
+  <footer><button id="refresh">Обновить</button></footer>
+  <button id="resizeHandle" class="resize-handle" type="button" aria-label="Изменить размер окна"
+    title="Потяните, чтобы изменить размер окна. Двойной клик — вернуть исходный."></button>
+  <script src="popup.js"></script>
+</body>
+
+</html>

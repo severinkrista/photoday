@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Фото дня — Аналитика</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="analytics">
+  <header class="analytics-header">
+    <div>
+      <h1>Аналитика</h1>
+      <div id="status" class="muted"></div>
+    </div>
+    <div class="analytics-actions">
+      <button id="openFile" type="button">📄 Открыть таблицу</button>
+      <button id="refresh" type="button">Обновить данные</button>
+      <button id="openSettings" type="button">Настройки</button>
+    </div>
+  </header>
+
+  <div id="error" class="error" hidden></div>
+  <div id="note" class="notice" hidden></div>
+
+  <div class="analytics-layout">
+    <aside class="filter-panel">
+      <h2>Выборка</h2>
+      <div class="filter-dates">
+        <label>С<input id="from" type="date"></label>
+        <label>По<input id="to" type="date"></label>
+      </div>
+      <div class="quick-range">
+        <button type="button" data-days="7">7 дней</button>
+        <button type="button" data-days="30">30 дней</button>
+        <button type="button" data-days="90">Квартал</button>
+        <button type="button" data-days="365">Год</button>
+        <button type="button" data-days="0">Всё время</button>
+      </div>
+
+      <h3>Вид задачи</h3>
+      <div id="typeChips" class="chips"></div>
+
+      <h3>Часть дня</h3>
+      <div id="partChips" class="chips"></div>
+
+      <h3>День недели</h3>
+      <div id="weekdayChips" class="chips"></div>
+
+      <h3>Сложность</h3>
+      <div class="filter-dates">
+        <label>От<select id="minDifficulty"></select></label>
+        <label>До<select id="maxDifficulty"></select></label>
+      </div>
+
+      <h3>Текст задачи</h3>
+      <input id="search" type="search" placeholder="поиск по описанию">
+
+      <label class="checkbox"><input id="onlyWithAttachment" type="checkbox"><span>Только с вложением</span></label>
+      <label class="checkbox"><input id="includePending" type="checkbox"><span>Учитывать неотправленные записи</span></label>
+
+      <button id="resetFilters" type="button">Сбросить фильтры</button>
+      <div id="filterSummary" class="filter-summary"></div>
+    </aside>
+
+    <main class="dashboard">
+      <section id="kpiRow" class="kpi-row"></section>
+
+      <section class="chart-card">
+        <div class="chart-head">
+          <h2>Основной график</h2>
+          <div class="chart-controls">
+            <label>Группировка<select id="groupBy"></select></label>
+            <label>Показатель<select id="metric"></select></label>
+            <label>График<select id="chartType"></select></label>
+            <label id="limitLabel">Максимум строк<input id="limit" type="number" min="1" max="100"></label>
+          </div>
+        </div>
+        <div class="chart-box chart-box-wide"><canvas id="mainChart"></canvas></div>
+        <div id="mainEmpty" class="empty" hidden>За выбранный период данных нет — измените фильтры или период.</div>
+      </section>
+
+      <div class="grid-2">
+        <section class="chart-card">
+          <h2>Виды задач</h2>
+          <div class="chart-box"><canvas id="typeChart"></canvas></div>
+        </section>
+        <section class="chart-card">
+          <h2>Распределение сложности</h2>
+          <div class="chart-box"><canvas id="difficultyChart"></canvas></div>
+        </section>
+      </div>
+
+      <div class="grid-2">
+        <section class="chart-card">
+          <h2>Профиль недели</h2>
+          <div class="chart-box"><canvas id="weekdayChart"></canvas></div>
+        </section>
+        <section class="chart-card">
+          <h2>Части дня</h2>
+          <div class="chart-box"><canvas id="partChart"></canvas></div>
+        </section>
+      </div>
+
+      <section class="chart-card">
+        <div class="chart-head">
+          <h2>Календарь активности</h2>
+          <div class="chart-controls">
+            <label>Показатель<select id="heatmapMetric">
+                <option value="count">Количество задач</option>
+                <option value="sumDifficulty">Сумма сложности</option>
+                <option value="avgDifficulty">Средняя сложность</option>
+              </select></label>
+          </div>
+        </div>
+        <div class="heatmap-scroll">
+          <div id="heatmap" class="heatmap"></div>
+        </div>
+        <div class="heatmap-legend"><span>меньше</span>
+          <div id="heatmapScale" class="heatmap-scale"></div><span>больше</span>
+        </div>
+      </section>
+
+      <section class="chart-card">
+        <div class="chart-head">
+          <h2>Таблица выборки</h2>
+          <button id="exportCsv" type="button">Скачать CSV</button>
+        </div>
+        <div id="tableWrap" class="table-wrap"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="analytics.js"></script>
+</body>
+
+</html>

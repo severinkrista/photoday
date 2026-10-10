@@ -1,12 +1,13 @@
 name: Browser extension build
 on:
   push:
-    branches: [yadisk]
+    branches: [yadisk, "arena/**"]
     paths:
       - "web-extension/src/**"
       - "web-extension/*.html"
       - "web-extension/*.css"
       - "web-extension/*.json"
+      - "web-extension/icons/**"
       - "web-extension/build.mjs"
       - ".github/workflows/web-extension-build.yml"
   workflow_dispatch:
@@ -26,12 +27,12 @@ jobs:
           node-version: "22"
       - run: npm install
       - run: npm run build
-      - run: cp dist/popup.js popup.js && cp dist/settings.js settings.js && cp dist/viewer.js viewer.js
+      - run: cp dist/popup.js popup.js && cp dist/settings.js settings.js && cp dist/viewer.js viewer.js && cp dist/background.js background.js && cp dist/analytics.js analytics.js
       - run: |
           cd ..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web-extension/popup.js web-extension/settings.js web-extension/viewer.js
+          git add web-extension/popup.js web-extension/settings.js web-extension/viewer.js web-extension/background.js web-extension/analytics.js
           git diff --cached --quiet || git commit -m "Build browser extension"
           git push
       - uses: actions/upload-artifact@v7

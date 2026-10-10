@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [yadisk]
+    branches: [yadisk, "arena/187f29ce-photoday"]
   workflow_dispatch:
 
 jobs:
@@ -27,5 +27,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: photoday-apk
+          name: photoday-2.0.0-apk
           path: build-output/photoday-*.apk
