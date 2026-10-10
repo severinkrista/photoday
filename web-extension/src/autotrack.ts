@@ -203,7 +203,7 @@ export async function initAutoTrack() {
     try {const focused=await Promise.resolve(a.windows?.getLastFocused?.());browserFocused=!!focused&&focused.id!==-1;}
     catch {browserFocused=true;}
     const tab=await currentTab();
-    if(state.active&&tab&&state.active.tabId===tab.id&&safeUrl(String(tab.url??""))===state.active.url&&browserFocused&&idleState==="active") {
+    if(state.active&&Date.now()-(state.active.lastCheckpointAtMs??state.active.openedAtMs)<=120_000&&tab&&state.active.tabId===tab.id&&safeUrl(String(tab.url??""))===state.active.url&&browserFocused&&idleState==="active") {
       state.active.title=String(tab.title??state.active.title);
       await persist();
     } else {
