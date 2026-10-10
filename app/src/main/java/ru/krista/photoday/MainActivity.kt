@@ -317,6 +317,7 @@ private fun MainScreen(
                         Text("Яндекс Диск", style = MaterialTheme.typography.titleMedium)
                         Text("Подключите свой аккаунт, чтобы читать и изменять файл.")
                         Button(onClick = onConnect, Modifier.fillMaxWidth()) { Text("Подключить Яндекс") }
+                        OutlinedButton(onClick = onDailyReflection, Modifier.fillMaxWidth()) { Text("🎙 Итоги дня", fontSize = 18.sp) }
                     }
                 }
             } else {

@@ -198,7 +198,6 @@ internal fun DailyReflectionScreen(
     }
 
     fun beginRecording(entry: ReflectionEntry) {
-        if (!connected) { message = "Сначала подключите Яндекс Диск в настройках приложения."; return }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
