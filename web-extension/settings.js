@@ -350,6 +350,12 @@
     if (existing >= 0) records[existing] = record;
     else records.push(record);
   }
+  async function closeSession(now = Date.now()) {
+    if (!state.active) return;
+    await recordCurrent(now);
+    state.active = null;
+    await persist();
+  }
   function uploadPath(root, day) {
     return root.replace(/\/+$/, "") + "/" + day + "/autotrack/autotrack.json";
   }
@@ -361,11 +367,11 @@
       await ensureFolder(current);
     }
   }
-  async function uploadDay(day) {
+  async function uploadDay(day, force = false) {
     const records = (state.days[day] ?? []).filter((x) => x.durationSeconds > MIN_DURATION_SECONDS);
     if (!records.length) return;
     const settings2 = await getAutoTrackSettings();
-    if (!settings2.enabled) return;
+    if (!settings2.enabled && !force) return;
     const root = settings2.rootPath.trim().replace(/\/+$/, "");
     const path = uploadPath(root, day);
     const autoFolder = path.slice(0, path.lastIndexOf("/"));
@@ -376,12 +382,12 @@
     const payload = { date: day, generatedAt: (/* @__PURE__ */ new Date()).toISOString(), minimumSessionSeconds: MIN_DURATION_SECONDS, records: [...records].sort((a, b) => a.openedAt.localeCompare(b.openedAt)) };
     await uploadAutotrackJson(path, JSON.stringify(payload, null, 2));
   }
-  async function uploadAutotrackNow() {
+  async function uploadAutotrackNow(force = false) {
     await recordCurrent();
     await persist();
     const settings2 = await getAutoTrackSettings();
-    if (!settings2.enabled) return;
-    for (const day of Object.keys(state.days).sort()) await uploadDay(day);
+    if (!settings2.enabled && !force) return;
+    for (const day of Object.keys(state.days).sort()) await uploadDay(day, force);
     state.lastUploadedAt = Date.now();
     state.lastError = "";
     await persist();
@@ -401,6 +407,8 @@
     if (settings2.enabled) {
       a.alarms.create(ALARM, { delayInMinutes: settings2.uploadEveryMinutes, periodInMinutes: settings2.uploadEveryMinutes });
       a.alarms.create(CHECKPOINT_ALARM, { delayInMinutes: 1, periodInMinutes: 1 });
+    } else {
+      await closeSession();
     }
   }
 
@@ -592,7 +600,7 @@
       autotrackSettings = collectAutoTrackSettings();
       await saveAutoTrackSettings(autotrackSettings);
       await syncAutoTrackAlarm();
-      await uploadAutotrackNow();
+      await uploadAutotrackNow(true);
       $("autotrackStatus").textContent = "\u041F\u0435\u0440\u0435\u0434\u0430\u0447\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430. \u0412 JSON \u0432\u043A\u043B\u044E\u0447\u0430\u044E\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0441\u0435\u0430\u043D\u0441\u044B \u0434\u043E\u043B\u044C\u0448\u0435 3 \u043C\u0438\u043D\u0443\u0442.";
     } catch (e) {
       $("autotrackStatus").textContent = "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0435\u0440\u0435\u0434\u0430\u0442\u044C \u0430\u0432\u0442\u043E\u0442\u0440\u0435\u043A\u0438\u043D\u0433: " + (e instanceof Error ? e.message : String(e));

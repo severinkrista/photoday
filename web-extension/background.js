@@ -420,7 +420,8 @@
     await persist();
   }
   async function beginSession(tab) {
-    if (!tab || typeof tab.id !== "number" || !browserFocused || idleState !== "active" || !tab.url || !/^https?:/i.test(tab.url)) return;
+    const settings = await getAutoTrackSettings();
+    if (!settings.enabled || !tab || typeof tab.id !== "number" || !browserFocused || idleState !== "active" || !tab.url || !/^https?:/i.test(tab.url)) return;
     const now = Date.now();
     state.active = { tabId: tab.id, windowId: Number(tab.windowId) || -1, url: safeUrl(String(tab.url)), title: String(tab.title ?? ""), openedAtMs: now, lastCheckpointAtMs: now };
     await persist();
@@ -495,11 +496,11 @@
       await ensureFolder(current);
     }
   }
-  async function uploadDay(day) {
+  async function uploadDay(day, force = false) {
     const records = (state.days[day] ?? []).filter((x) => x.durationSeconds > MIN_DURATION_SECONDS);
     if (!records.length) return;
     const settings = await getAutoTrackSettings();
-    if (!settings.enabled) return;
+    if (!settings.enabled && !force) return;
     const root = settings.rootPath.trim().replace(/\/+$/, "");
     const path = uploadPath(root, day);
     const autoFolder = path.slice(0, path.lastIndexOf("/"));
@@ -510,12 +511,12 @@
     const payload = { date: day, generatedAt: (/* @__PURE__ */ new Date()).toISOString(), minimumSessionSeconds: MIN_DURATION_SECONDS, records: [...records].sort((a, b) => a.openedAt.localeCompare(b.openedAt)) };
     await uploadAutotrackJson(path, JSON.stringify(payload, null, 2));
   }
-  async function uploadAutotrackNow() {
+  async function uploadAutotrackNow(force = false) {
     await recordCurrent();
     await persist();
     const settings = await getAutoTrackSettings();
-    if (!settings.enabled) return;
-    for (const day of Object.keys(state.days).sort()) await uploadDay(day);
+    if (!settings.enabled && !force) return;
+    for (const day of Object.keys(state.days).sort()) await uploadDay(day, force);
     state.lastUploadedAt = Date.now();
     state.lastError = "";
     await persist();
@@ -535,6 +536,8 @@
     if (settings.enabled) {
       a.alarms.create(ALARM, { delayInMinutes: settings.uploadEveryMinutes, periodInMinutes: settings.uploadEveryMinutes });
       a.alarms.create(CHECKPOINT_ALARM, { delayInMinutes: 1, periodInMinutes: 1 });
+    } else {
+      await closeSession();
     }
   }
   async function handleAutoTrackAlarm(name) {
@@ -597,7 +600,7 @@
         browserFocused = true;
       }
       const tab = await currentTab();
-      if (state.active && tab && state.active.tabId === tab.id && safeUrl(String(tab.url ?? "")) === state.active.url && browserFocused && idleState === "active") {
+      if (state.active && Date.now() - (state.active.lastCheckpointAtMs ?? state.active.openedAtMs) <= 12e4 && tab && state.active.tabId === tab.id && safeUrl(String(tab.url ?? "")) === state.active.url && browserFocused && idleState === "active") {
         state.active.title = String(tab.title ?? state.active.title);
         await persist();
       } else {
