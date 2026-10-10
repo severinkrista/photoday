@@ -302,8 +302,10 @@ internal fun DailyReflectionScreen(
                                     ) { Text(if (entry.audioPath == null) "● Запись" else "● Записать заново", fontSize = 16.sp) }
                                     OutlinedButton(
                                         onClick = {
-                                            if (recordingId == entry.question.id) stopRecording()
+                                            val wasRecording = recordingId == entry.question.id
+                                            if (wasRecording) stopRecording()
                                             val file = entry.audioPath?.let(::File)
+                                                ?: if (wasRecording) store.newAudioFile(entry.question.id) else null
                                             file?.delete()
                                             persist(entries.map { if (it.question.id == entry.question.id) it.copy(audioPath = null, audioUploaded = false, questionUploaded = false, error = null) else it })
                                             message = "Ответ отменён."
