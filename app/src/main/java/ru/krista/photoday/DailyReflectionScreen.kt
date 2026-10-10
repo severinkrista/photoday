@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -226,6 +227,15 @@ internal fun DailyReflectionScreen(
         }
     }
 
+    fun leaveScreen() {
+        if (recordingId != null) stopRecording()
+        onBack()
+    }
+
+    BackHandler {
+        leaveScreen()
+    }
+
     suspend fun uploadFile(entry: ReflectionEntry, audio: Boolean) {
         val parent = disk.currentPath().substringBeforeLast("/", "")
         if (parent.isBlank()) error("Не удалось определить папку рядом с photoday.xlsx")
@@ -252,7 +262,7 @@ internal fun DailyReflectionScreen(
     Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 14.dp, vertical = 8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = onBack) { Text("‹ Назад", fontSize = 18.sp) }
+                TextButton(onClick = { leaveScreen() }) { Text("‹ Назад", fontSize = 18.sp) }
                 Text("Итоги дня", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 TextButton(onClick = { showCancelConfirm = true }) { Text("Отмена", fontSize = 16.sp) }
             }
@@ -287,7 +297,7 @@ internal fun DailyReflectionScreen(
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(
                                         onClick = { beginRecording(entry) },
-                                        enabled = !sending,
+                                        enabled = !sending && recordingId == null,
                                         modifier = Modifier.weight(1f)
                                     ) { Text(if (entry.audioPath == null) "● Запись" else "● Записать заново", fontSize = 16.sp) }
                                     OutlinedButton(
@@ -379,7 +389,7 @@ internal fun DailyReflectionScreen(
             onDismissRequest = { showCancelConfirm = false },
             title = { Text("Закрыть итоги дня?") },
             text = { Text("Локальные записи сохранятся. Вы сможете вернуться и отправить их позже.") },
-            confirmButton = { TextButton(onClick = { showCancelConfirm = false; onBack() }) { Text("Закрыть") } },
+            confirmButton = { TextButton(onClick = { showCancelConfirm = false; leaveScreen() }) { Text("Закрыть") } },
             dismissButton = { TextButton(onClick = { showCancelConfirm = false }) { Text("Продолжить") } }
         )
     }
