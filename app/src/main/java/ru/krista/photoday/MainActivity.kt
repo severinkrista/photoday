@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.krista.photoday.data.TaskTypeDefinition
@@ -115,11 +116,13 @@ private fun PhotoDayScreen(vm: MainViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     var showTaskTypes by remember { mutableStateOf(false) }
     var showAnalytics by remember { mutableStateOf(false) }
+    var showDailyReflection by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
 
     val goBack = {
         when {
             showCode -> showCode = false
+            showDailyReflection -> showDailyReflection = false
             showAdd -> showAdd = false
             showTaskTypes -> showTaskTypes = false
             showSettings -> showSettings = false
@@ -127,12 +130,17 @@ private fun PhotoDayScreen(vm: MainViewModel) {
             state.filePickerOpen -> vm.closeFilePicker()
         }
     }
-    BackHandler(enabled = state.attachmentPreview != null || showTaskTypes || showSettings || showAnalytics || showAdd || showCode || state.filePickerOpen) {
+    BackHandler(enabled = state.attachmentPreview != null || showDailyReflection || showTaskTypes || showSettings || showAnalytics || showAdd || showCode || state.filePickerOpen) {
         if (state.attachmentPreview != null) vm.closeAttachment() else goBack()
     }
 
     MaterialTheme {
         when {
+            showDailyReflection -> DailyReflectionScreen(
+                disk = (LocalContext.current.applicationContext as PhotoDayApplication).appContainer.diskClient,
+                connected = state.isConnected,
+                onBack = { showDailyReflection = false }
+            )
             showTaskTypes -> TaskTypesScreen(
                 definitions = state.taskTypeDefinitions,
                 onBack = { showTaskTypes = false },
@@ -162,7 +170,7 @@ private fun PhotoDayScreen(vm: MainViewModel) {
                 onSettings = { showSettings = true },
                 onAnalytics = { showAnalytics = true; vm.loadAnalytics() },
                 onRefresh = vm::refresh,
-                onAdd = { showAdd = true },
+                onAdd = { showAdd = true },\n                onDailyReflection = { showDailyReflection = true },
                 onRetryPending = vm::retryPendingTask,
                 onCancelPending = vm::cancelPendingTask,
                 onOpenAttachment = vm::openAttachment,
@@ -255,6 +263,7 @@ private fun MainScreen(
     onAnalytics: () -> Unit,
     onRefresh: () -> Unit,
     onAdd: () -> Unit,
+    onDailyReflection: () -> Unit,
     onRetryPending: (TaskRecord) -> Unit,
     onCancelPending: (TaskRecord) -> Unit,
     onOpenAttachment: (TaskRecord) -> Unit,
@@ -344,7 +353,7 @@ private fun MainScreen(
                 }
 
 
-                Button(onClick = onAdd, Modifier.fillMaxWidth()) { Text("＋ Новая задача") }            }
+                Button(onClick = onDailyReflection, Modifier.fillMaxWidth()) { Text("🎙 Итоги дня", fontSize = 18.sp) }\n                Button(onClick = onAdd, Modifier.fillMaxWidth()) { Text("＋ Новая задача") }            }
         }
     }
 }
