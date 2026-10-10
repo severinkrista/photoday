@@ -349,39 +349,44 @@ internal fun DailyReflectionScreen(
                     }
                 }
             }
-            Button(
-                onClick = {
-                    scope.launch {
-                        sending = true
-                        message = null
-                        val snapshot = entries.toList()
-                        for (entry in snapshot) {
-                            if (entry.audioPath == null) continue
-                            if (!entry.questionUploaded) {
-                                runCatching { uploadFile(entry, false) }.onFailure {
-                                    message = "Ошибка отправки вопроса «${entry.question.title}»: ${it.message}"
-                                    sending = false
-                                    return@launch
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            sending = true
+                            message = null
+                            val snapshot = entries.toList()
+                            for (entry in snapshot) {
+                                if (entry.audioPath == null) continue
+                                if (!entry.questionUploaded) {
+                                    runCatching { uploadFile(entry, false) }.onFailure {
+                                        message = "Ошибка отправки вопроса «${entry.question.title}»: ${it.message}"
+                                        sending = false
+                                        return@launch
+                                    }
+                                }
+                                val fresh = entries.first { it.question.id == entry.question.id }
+                                if (!fresh.audioUploaded) {
+                                    runCatching { uploadFile(fresh, true) }.onFailure {
+                                        message = "Ошибка отправки ответа «${entry.question.title}»: ${it.message}"
+                                        sending = false
+                                        return@launch
+                                    }
                                 }
                             }
-                            val fresh = entries.first { it.question.id == entry.question.id }
-                            if (!fresh.audioUploaded) {
-                                runCatching { uploadFile(fresh, true) }.onFailure {
-                                    message = "Ошибка отправки ответа «${entry.question.title}»: ${it.message}"
-                                    sending = false
-                                    return@launch
-                                }
-                            }
+                            sending = false
+                            message = if (entries.none { it.audioPath != null && !it.complete }) "Все записанные ответы отправлены." else "Отправка остановлена. Неотправленные файлы можно повторить отдельно."
                         }
-                        sending = false
-                        message = if (entries.none { it.audioPath != null && !it.complete }) "Все записанные ответы отправлены." else "Отправка остановлена. Неотправленные файлы можно повторить отдельно."
-                    }
-                },
-                enabled = connected && !sending && entries.any { it.audioPath != null && !it.complete },
-                modifier = Modifier.fillMaxWidth().height(58.dp)
-            ) {
-                if (sending) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                else Text("Отправить", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    },
+                    enabled = connected && !sending && entries.any { it.audioPath != null && !it.complete },
+                    modifier = Modifier.weight(1f).height(58.dp)
+                ) {
+                    if (sending) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                    else Text("Отправить", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { showCancelConfirm = true }, enabled = !sending) {
+                    Text("Отмена", fontSize = 16.sp)
+                }
             }
         }
     }
