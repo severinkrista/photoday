@@ -382,7 +382,7 @@
     try {
       const u = new URL(raw);
       if (u.protocol !== "http:" && u.protocol !== "https:") return raw;
-      for (const key of [...u.searchParams.keys()]) if (/token|secret|password|passwd|auth|session|code|key/i.test(key)) u.searchParams.delete(key);
+      for (const key of [...u.searchParams.keys()]) if (/(?:^|[_-])(token|secret|password|passwd|auth|session|code|key)(?:$|[_-])|^(access|api|private)key$/i.test(key)) u.searchParams.delete(key);
       u.hash = "";
       return u.toString();
     } catch {
@@ -512,6 +512,10 @@
     await uploadAutotrackJson(path, JSON.stringify(payload, null, 2));
   }
   async function uploadAutotrackNow(force = false) {
+    if (!initialized) {
+      const saved = await getAutoTrackState();
+      state = { days: saved.days ?? {}, active: saved.active ?? null, lastUploadedAt: saved.lastUploadedAt, lastError: saved.lastError };
+    }
     await recordCurrent();
     await persist();
     const settings = await getAutoTrackSettings();
@@ -525,6 +529,10 @@
     const a = api2();
     if (!a?.alarms) return;
     const settings = await getAutoTrackSettings();
+    if (!settings.enabled && !initialized) {
+      const saved = await getAutoTrackState();
+      state = { days: saved.days ?? {}, active: saved.active ?? null, lastUploadedAt: saved.lastUploadedAt, lastError: saved.lastError };
+    }
     try {
       await Promise.resolve(a.alarms.clear(ALARM));
     } catch {

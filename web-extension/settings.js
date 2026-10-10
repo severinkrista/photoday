@@ -313,6 +313,9 @@
     if (!value.rootPath.trim()) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0430\u043F\u043A\u0443 \xAB\u0418\u0442\u043E\u0433\u0438 \u0434\u043D\u044F\xBB \u043D\u0430 \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0435.");
     await set2(SETTINGS_KEY, { enabled: !!value.enabled, uploadEveryMinutes: Math.floor(interval), rootPath: value.rootPath.trim() });
   }
+  async function getAutoTrackState() {
+    return get2(STATE_KEY, { days: {}, active: null });
+  }
   async function saveAutoTrackState(value) {
     await set2(STATE_KEY, value);
   }
@@ -321,6 +324,7 @@
   var ALARM = "photoday-autotrack-upload";
   var CHECKPOINT_ALARM = "photoday-autotrack-checkpoint";
   var MIN_DURATION_SECONDS = 180;
+  var initialized = false;
   var state = { days: {}, active: null };
   var queue = Promise.resolve();
   var initialization = Promise.resolve();
@@ -383,6 +387,10 @@
     await uploadAutotrackJson(path, JSON.stringify(payload, null, 2));
   }
   async function uploadAutotrackNow(force = false) {
+    if (!initialized) {
+      const saved = await getAutoTrackState();
+      state = { days: saved.days ?? {}, active: saved.active ?? null, lastUploadedAt: saved.lastUploadedAt, lastError: saved.lastError };
+    }
     await recordCurrent();
     await persist();
     const settings2 = await getAutoTrackSettings();
@@ -396,6 +404,10 @@
     const a = api2();
     if (!a?.alarms) return;
     const settings2 = await getAutoTrackSettings();
+    if (!settings2.enabled && !initialized) {
+      const saved = await getAutoTrackState();
+      state = { days: saved.days ?? {}, active: saved.active ?? null, lastUploadedAt: saved.lastUploadedAt, lastError: saved.lastError };
+    }
     try {
       await Promise.resolve(a.alarms.clear(ALARM));
     } catch {
