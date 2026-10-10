@@ -10,7 +10,6 @@ import {syncAutoTrackAlarm,uploadAutotrackNow} from "./autotrack.js";
 
 let settings:AppSettings;
 let autotrackSettings:AutoTrackSettings;
-let autotrackSettings:AutoTrackSettings;
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const input=(id:string)=>$(id) as HTMLInputElement;
 
@@ -27,7 +26,6 @@ async function init(){
     bindClick("clearCache",()=>void clearCache());
     bindClick("addType",()=>{syncTypesFromDom();settings.taskTypes.push({code:"Новый",description:""});render();});
     bindClick("testReminder",()=>void testReminder());
-    bindClick("autotrackUploadNow",()=>void uploadAutotrack());
     bindClick("autotrackUploadNow",()=>void uploadAutotrack());
     // Сведения о напоминании обновляем при возврате на страницу: нажатие кнопки в уведомлении
     // обрабатывает служебный процесс, поэтому результат появляется здесь с задержкой.
