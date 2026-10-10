@@ -3,9 +3,14 @@ import {clearLocalData,getReminderEvent,getSettings,saveSettings} from "./storag
 import {isHttpUrl} from "./model.js";
 import {connectToYandex,testConnection} from "./yandex.js";
 import {activeReminderNotifications,extensionApi,notificationPermission,reminderSummary,showReminder,syncReminderAlarm} from "./reminders.js";
-import {REMINDER_EVENT_KEY} from "./storage.js";\nimport {getAutoTrackSettings,saveAutoTrackSettings} from "./autotrack-storage.js";\nimport type {AutoTrackSettings} from "./autotrack-storage.js";\nimport {syncAutoTrackAlarm,uploadAutotrackNow} from "./autotrack.js";
+import {REMINDER_EVENT_KEY} from "./storage.js";
+import {getAutoTrackSettings,saveAutoTrackSettings} from "./autotrack-storage.js";
+import type {AutoTrackSettings} from "./autotrack-storage.js";
+import {syncAutoTrackAlarm,uploadAutotrackNow} from "./autotrack.js";
 
-let settings:AppSettings;\nlet autotrackSettings:AutoTrackSettings;
+let settings:AppSettings;
+let autotrackSettings:AutoTrackSettings;
+let autotrackSettings:AutoTrackSettings;
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const input=(id:string)=>$(id) as HTMLInputElement;
 
@@ -14,13 +19,16 @@ async function bindClick(id:string,handler:()=>void){const el=$(id);if(el)el.onc
 async function init(){
   try{
     settings=await getSettings();
+    autotrackSettings=await getAutoTrackSettings();
     render();
     bindClick("save",()=>void save());
     bindClick("connect",()=>void connect());
     bindClick("testConnection",()=>void test());
     bindClick("clearCache",()=>void clearCache());
     bindClick("addType",()=>{syncTypesFromDom();settings.taskTypes.push({code:"Новый",description:""});render();});
-    bindClick("testReminder",()=>void testReminder());\n    bindClick("autotrackUploadNow",()=>void uploadAutotrack());
+    bindClick("testReminder",()=>void testReminder());
+    bindClick("autotrackUploadNow",()=>void uploadAutotrack());
+    bindClick("autotrackUploadNow",()=>void uploadAutotrack());
     // Сведения о напоминании обновляем при возврате на страницу: нажатие кнопки в уведомлении
     // обрабатывает служебный процесс, поэтому результат появляется здесь с задержкой.
     window.addEventListener("focus",()=>void renderNotificationDiagnostics());
@@ -45,6 +53,9 @@ function syncTypesFromDom(){if(!settings)return;settings.taskTypes=Array.from(do
 
 function render(){
   input("diskPath").value=settings.diskPath;
+  input("autotrackEnabled").checked=autotrackSettings.enabled;
+  input("autotrackRootPath").value=autotrackSettings.rootPath;
+  input("autotrackEveryMinutes").value=String(autotrackSettings.uploadEveryMinutes);
   input("fileUrl").value=settings.fileUrl??"";
   const n=settings.displayMode==="tasks"?settings.tasksToShow:settings.daysToShow;
   input("tasks").value=String(n);
@@ -192,12 +203,15 @@ async function uploadAutotrack(){
     $("autotrackStatus").textContent="Не удалось передать автотрекинг: "+(e instanceof Error?e.message:String(e));
   }finally{button.disabled=false;}
 }
-\nasync function clearCache(){
+
+async function clearCache(){
   if(!confirm("Сбросить локальные данные расширения? Будут удалены сохранённые настройки, токен Яндекс Диска и очередь незагруженных задач. Данные в XLSX на Яндекс Диске не удаляются."))return;
   try{
     await clearLocalData();
     settings=await getSettings();
+    autotrackSettings=await getAutoTrackSettings();
     await syncReminderAlarm();
+    await syncAutoTrackAlarm();
     render();
     $("connectionStatus").textContent="Локальные данные сброшены. Подключите Яндекс Диск заново и сохраните настройки.";
     $("testResult").textContent="";
@@ -210,8 +224,11 @@ async function uploadAutotrack(){
 async function save(){
   try{
     settings=collectSettings();
+    autotrackSettings=collectAutoTrackSettings();
     await saveSettings(settings);
+    await saveAutoTrackSettings(autotrackSettings);
     await syncReminderAlarm();
+    await syncAutoTrackAlarm();
     updateReminderSummary();
     $("status").textContent="Настройки сохранены.";
     $("reminderStatus").textContent="Расписание напоминаний обновлено. "+reminderSummary(settings.reminders);
