@@ -195,7 +195,7 @@ async function uploadAutotrack(){
     autotrackSettings=collectAutoTrackSettings();
     await saveAutoTrackSettings(autotrackSettings);
     await syncAutoTrackAlarm();
-    await uploadAutotrackNow();
+    await uploadAutotrackNow(true);
     $("autotrackStatus").textContent="Передача завершена. В JSON включаются только сеансы дольше 3 минут.";
   }catch(e){
     $("autotrackStatus").textContent="Не удалось передать автотрекинг: "+(e instanceof Error?e.message:String(e));
