@@ -3,9 +3,9 @@ import {clearLocalData,getReminderEvent,getSettings,saveSettings} from "./storag
 import {isHttpUrl} from "./model.js";
 import {connectToYandex,testConnection} from "./yandex.js";
 import {activeReminderNotifications,extensionApi,notificationPermission,reminderSummary,showReminder,syncReminderAlarm} from "./reminders.js";
-import {REMINDER_EVENT_KEY} from "./storage.js";
+import {REMINDER_EVENT_KEY} from "./storage.js";\nimport {getAutoTrackSettings,saveAutoTrackSettings} from "./autotrack-storage.js";\nimport type {AutoTrackSettings} from "./autotrack-storage.js";\nimport {syncAutoTrackAlarm,uploadAutotrackNow} from "./autotrack.js";
 
-let settings:AppSettings;
+let settings:AppSettings;\nlet autotrackSettings:AutoTrackSettings;
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const input=(id:string)=>$(id) as HTMLInputElement;
 
@@ -20,7 +20,7 @@ async function init(){
     bindClick("testConnection",()=>void test());
     bindClick("clearCache",()=>void clearCache());
     bindClick("addType",()=>{syncTypesFromDom();settings.taskTypes.push({code:"Новый",description:""});render();});
-    bindClick("testReminder",()=>void testReminder());
+    bindClick("testReminder",()=>void testReminder());\n    bindClick("autotrackUploadNow",()=>void uploadAutotrack());
     // Сведения о напоминании обновляем при возврате на страницу: нажатие кнопки в уведомлении
     // обрабатывает служебный процесс, поэтому результат появляется здесь с задержкой.
     window.addEventListener("focus",()=>void renderNotificationDiagnostics());
@@ -168,7 +168,31 @@ function collectSettings():AppSettings{
   return {displayMode,tasksToShow:displayMode==="tasks"?tasksToShow:settings.tasksToShow,daysToShow:displayMode==="days"?tasksToShow:daysToShow,diskPath,taskTypes,reminders,fileUrl};
 }
 
-async function clearCache(){
+
+function collectAutoTrackSettings():AutoTrackSettings{
+  const enabled=input("autotrackEnabled").checked;
+  const rootPath=input("autotrackRootPath").value.trim();
+  const uploadEveryMinutes=Number(input("autotrackEveryMinutes").value);
+  if(!rootPath)throw new Error("Укажите папку «Итоги дня» на Яндекс Диске.");
+  if(!Number.isFinite(uploadEveryMinutes)||uploadEveryMinutes<5||uploadEveryMinutes>1440)throw new Error("Интервал автотрекинга должен быть от 5 до 1440 минут.");
+  return {enabled,rootPath,uploadEveryMinutes:Math.floor(uploadEveryMinutes)};
+}
+
+async function uploadAutotrack(){
+  const button=$("autotrackUploadNow") as HTMLButtonElement;
+  button.disabled=true;
+  $("autotrackStatus").textContent="Передаём накопленные сеансы...";
+  try{
+    autotrackSettings=collectAutoTrackSettings();
+    await saveAutoTrackSettings(autotrackSettings);
+    await syncAutoTrackAlarm();
+    await uploadAutotrackNow();
+    $("autotrackStatus").textContent="Передача завершена. В JSON включаются только сеансы дольше 3 минут.";
+  }catch(e){
+    $("autotrackStatus").textContent="Не удалось передать автотрекинг: "+(e instanceof Error?e.message:String(e));
+  }finally{button.disabled=false;}
+}
+\nasync function clearCache(){
   if(!confirm("Сбросить локальные данные расширения? Будут удалены сохранённые настройки, токен Яндекс Диска и очередь незагруженных задач. Данные в XLSX на Яндекс Диске не удаляются."))return;
   try{
     await clearLocalData();
