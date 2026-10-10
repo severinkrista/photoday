@@ -13,6 +13,7 @@ interface ActiveSession {
   url:string;
   title:string;
   openedAtMs:number;
+  lastCheckpointAtMs?:number;
 }
 interface AutoTrackState {
   days:Record<string,AutoTrackRecord[]>;
@@ -21,6 +22,7 @@ interface AutoTrackState {
   lastError?:string;
 }
 const ALARM="photoday-autotrack-upload";
+const CHECKPOINT_ALARM="photoday-autotrack-checkpoint";
 const MIN_DURATION_SECONDS=180;
 const IDLE_THRESHOLD_SECONDS=60;
 let initialized=false;
@@ -70,7 +72,8 @@ async function closeSession(now=Date.now()) {
 }
 async function beginSession(tab:any) {
   if(!tab||typeof tab.id!=="number"||!browserFocused||idleState!=="active"||!tab.url||!/^https?:/i.test(tab.url))return;
-  state.active={tabId:tab.id,windowId:Number(tab.windowId)||-1,url:safeUrl(String(tab.url)),title:String(tab.title??""),openedAtMs:Date.now()};
+  const now=Date.now();
+  state.active={tabId:tab.id,windowId:Number(tab.windowId)||-1,url:safeUrl(String(tab.url)),title:String(tab.title??""),openedAtMs:now,lastCheckpointAtMs:now};
   await persist();
 }
 async function currentTab():Promise<any|null> {
@@ -155,11 +158,27 @@ export async function syncAutoTrackAlarm() {
   const a=api();if(!a?.alarms)return;
   const settings=await getAutoTrackSettings();
   try {await Promise.resolve(a.alarms.clear(ALARM));}catch{}
-  if(settings.enabled)a.alarms.create(ALARM,{delayInMinutes:settings.uploadEveryMinutes,periodInMinutes:settings.uploadEveryMinutes});
+  try {await Promise.resolve(a.alarms.clear(CHECKPOINT_ALARM));}catch{}
+  if(settings.enabled){
+    a.alarms.create(ALARM,{delayInMinutes:settings.uploadEveryMinutes,periodInMinutes:settings.uploadEveryMinutes});
+    a.alarms.create(CHECKPOINT_ALARM,{delayInMinutes:1,periodInMinutes:1});
+  }
 }
 export async function handleAutoTrackAlarm(name:string) {
-  if(name!==ALARM)return;
-  await enqueue(async()=>{await initialization;try{await uploadAutotrackNow();}catch(e){state.lastError=e instanceof Error?e.message:String(e);await persist();}});
+  if(name!==ALARM&&name!==CHECKPOINT_ALARM)return;
+  await enqueue(async()=>{
+    await initialization;
+    if(name===CHECKPOINT_ALARM) {
+      if(state.active) {
+        await recordCurrent();
+        state.active.lastCheckpointAtMs=Date.now();
+        await persist();
+      }
+      return;
+    }
+    try {await uploadAutotrackNow();}
+    catch(e){state.lastError=e instanceof Error?e.message:String(e);await persist();}
+  });
 }
 export async function initAutoTrack() {
   if(initialized)return;
@@ -185,7 +204,8 @@ export async function initAutoTrack() {
       state.active.title=String(tab.title??state.active.title);
       await persist();
     } else {
-      await closeSession();
+      const previous=state.active;
+      if(previous)await closeSession(previous.lastCheckpointAtMs??previous.openedAtMs);
       await beginSession(tab);
     }
   })();
