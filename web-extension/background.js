@@ -361,6 +361,7 @@
 
   // src/autotrack.ts
   var ALARM = "photoday-autotrack-upload";
+  var CHECKPOINT_ALARM = "photoday-autotrack-checkpoint";
   var MIN_DURATION_SECONDS = 180;
   var IDLE_THRESHOLD_SECONDS = 60;
   var initialized = false;
@@ -420,7 +421,8 @@
   }
   async function beginSession(tab) {
     if (!tab || typeof tab.id !== "number" || !browserFocused || idleState !== "active" || !tab.url || !/^https?:/i.test(tab.url)) return;
-    state.active = { tabId: tab.id, windowId: Number(tab.windowId) || -1, url: safeUrl(String(tab.url)), title: String(tab.title ?? ""), openedAtMs: Date.now() };
+    const now = Date.now();
+    state.active = { tabId: tab.id, windowId: Number(tab.windowId) || -1, url: safeUrl(String(tab.url)), title: String(tab.title ?? ""), openedAtMs: now, lastCheckpointAtMs: now };
     await persist();
   }
   async function currentTab() {
@@ -526,12 +528,27 @@
       await Promise.resolve(a.alarms.clear(ALARM));
     } catch {
     }
-    if (settings.enabled) a.alarms.create(ALARM, { delayInMinutes: settings.uploadEveryMinutes, periodInMinutes: settings.uploadEveryMinutes });
+    try {
+      await Promise.resolve(a.alarms.clear(CHECKPOINT_ALARM));
+    } catch {
+    }
+    if (settings.enabled) {
+      a.alarms.create(ALARM, { delayInMinutes: settings.uploadEveryMinutes, periodInMinutes: settings.uploadEveryMinutes });
+      a.alarms.create(CHECKPOINT_ALARM, { delayInMinutes: 1, periodInMinutes: 1 });
+    }
   }
   async function handleAutoTrackAlarm(name) {
-    if (name !== ALARM) return;
+    if (name !== ALARM && name !== CHECKPOINT_ALARM) return;
     await enqueue(async () => {
       await initialization;
+      if (name === CHECKPOINT_ALARM) {
+        if (state.active) {
+          await recordCurrent();
+          state.active.lastCheckpointAtMs = Date.now();
+          await persist();
+        }
+        return;
+      }
       try {
         await uploadAutotrackNow();
       } catch (e) {
@@ -584,7 +601,8 @@
         state.active.title = String(tab.title ?? state.active.title);
         await persist();
       } else {
-        await closeSession();
+        const previous = state.active;
+        if (previous) await closeSession(previous.lastCheckpointAtMs ?? previous.openedAtMs);
         await beginSession(tab);
       }
     })();

@@ -319,6 +319,7 @@
 
   // src/autotrack.ts
   var ALARM = "photoday-autotrack-upload";
+  var CHECKPOINT_ALARM = "photoday-autotrack-checkpoint";
   var MIN_DURATION_SECONDS = 180;
   var state = { days: {}, active: null };
   var queue = Promise.resolve();
@@ -393,7 +394,14 @@
       await Promise.resolve(a.alarms.clear(ALARM));
     } catch {
     }
-    if (settings2.enabled) a.alarms.create(ALARM, { delayInMinutes: settings2.uploadEveryMinutes, periodInMinutes: settings2.uploadEveryMinutes });
+    try {
+      await Promise.resolve(a.alarms.clear(CHECKPOINT_ALARM));
+    } catch {
+    }
+    if (settings2.enabled) {
+      a.alarms.create(ALARM, { delayInMinutes: settings2.uploadEveryMinutes, periodInMinutes: settings2.uploadEveryMinutes });
+      a.alarms.create(CHECKPOINT_ALARM, { delayInMinutes: 1, periodInMinutes: 1 });
+    }
   }
 
   // src/settings.ts
