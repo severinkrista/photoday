@@ -14,3 +14,8 @@ export async function createAttachmentFolders(folder:string){const y=folder.subs
 export async function uploadAttachment(path:string,data:ArrayBuffer,type:string){const r=await api(await href("resources/upload",path,"&overwrite=true"),{method:"PUT",headers:{"Content-Type":type||"application/octet-stream"},body:data});if(!r.ok)throw new Error("Не удалось загрузить вложение: HTTP "+r.status);}
 export async function downloadFile(path:string){const r=await api(await href("resources/download",path));if(!r.ok)throw new Error("Не удалось скачать файл: HTTP "+r.status);return r.arrayBuffer();}
 export async function testConnection(s:AppSettings){const b=await downloadWorkbook(s);if(!b.byteLength)throw new Error("Основной XLSX-файл пустой.");const f=s.diskPath.substring(0,s.diskPath.lastIndexOf("/"))+"/attached";return {filePath:s.diskPath,attachmentFolder:f,attachmentFolderExists:await folderExists(f)};}
+/** Загружает JSON в указанный путь на Яндекс Диске, создавая ссылку на загрузку через API. */
+export async function uploadAutotrackJson(path:string,content:string){
+ const r=await api(await href("resources/upload",path,"&overwrite=true"),{method:"PUT",headers:{"Content-Type":"application/json; charset=utf-8"},body:content});
+ if(!r.ok)throw new Error("Не удалось загрузить автотрекинг в "+path+": HTTP "+r.status+" "+await r.text());
+}
