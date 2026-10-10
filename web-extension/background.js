@@ -80,8 +80,11 @@
   async function getReminderState() {
     return get("reminderState", {});
   }
-  async function saveReminderState(state) {
-    await set("reminderState", state);
+  async function saveReminderState(state2) {
+    await set("reminderState", state2);
+  }
+  async function getToken() {
+    return get("token", null);
   }
   async function saveReminderEvent(event) {
     await set(REMINDER_EVENT_KEY, event);
@@ -129,18 +132,18 @@
     return from < to ? current >= from && current < to : current >= from || current < to;
   }
   async function syncReminderAlarm() {
-    const api2 = extensionApi();
-    if (!api2?.alarms) return;
+    const api4 = extensionApi();
+    if (!api4?.alarms) return;
     const settings = await getSettings();
     const period = periodMinutes(settings.reminders);
-    const existing = await Promise.resolve(api2.alarms.get(REMINDER_ALARM)).catch(() => null);
+    const existing = await Promise.resolve(api4.alarms.get(REMINDER_ALARM)).catch(() => null);
     if (!settings.reminders.enabled) {
-      if (existing) await Promise.resolve(api2.alarms.clear(REMINDER_ALARM)).catch(() => void 0);
+      if (existing) await Promise.resolve(api4.alarms.clear(REMINDER_ALARM)).catch(() => void 0);
       return;
     }
     if (existing && Number(existing.periodInMinutes) === period) return;
-    await Promise.resolve(api2.alarms.clear(REMINDER_ALARM)).catch(() => void 0);
-    api2.alarms.create(REMINDER_ALARM, { delayInMinutes: period, periodInMinutes: period });
+    await Promise.resolve(api4.alarms.clear(REMINDER_ALARM)).catch(() => void 0);
+    api4.alarms.create(REMINDER_ALARM, { delayInMinutes: period, periodInMinutes: period });
   }
   async function handleReminderAlarm(name) {
     if (name !== REMINDER_ALARM) return;
@@ -149,31 +152,31 @@
     if (!reminders.enabled) return;
     const now = /* @__PURE__ */ new Date();
     if (!inRange(now, reminders)) return;
-    const state = await getReminderState();
-    const last = Number(state.lastNotifiedAt) || 0;
+    const state2 = await getReminderState();
+    const last = Number(state2.lastNotifiedAt) || 0;
     if (last && now.getTime() - last < periodMinutes(reminders) * 6e4 * 0.9) return;
     await saveReminderState({ lastNotifiedAt: now.getTime() });
     await showReminder();
   }
   async function platformOs() {
-    const api2 = extensionApi();
-    if (!api2?.runtime?.getPlatformInfo) return "";
+    const api4 = extensionApi();
+    if (!api4?.runtime?.getPlatformInfo) return "";
     try {
-      const info = await Promise.resolve(api2.runtime.getPlatformInfo());
+      const info = await Promise.resolve(api4.runtime.getPlatformInfo());
       return String(info?.os ?? "");
     } catch (e) {
       return "";
     }
   }
   async function showReminder() {
-    const api2 = extensionApi();
-    if (!api2?.notifications) throw new Error("\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0432 \u044D\u0442\u043E\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.");
+    const api4 = extensionApi();
+    if (!api4?.notifications) throw new Error("\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0432 \u044D\u0442\u043E\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.");
     const id = `${REMINDER_NOTIFICATION}-${Date.now()}`;
     const holdOnScreen = await platformOs() !== "mac";
-    const iconUrl = api2.runtime?.getURL ? api2.runtime.getURL("icons/icon128.png") : "icons/icon128.png";
+    const iconUrl = api4.runtime?.getURL ? api4.runtime.getURL("icons/icon128.png") : "icons/icon128.png";
     await new Promise((resolve) => {
       try {
-        api2.notifications.create(id, {
+        api4.notifications.create(id, {
           type: "basic",
           iconUrl,
           title: "\u0424\u043E\u0442\u043E \u0434\u043D\u044F",
@@ -183,7 +186,7 @@
           requireInteraction: holdOnScreen,
           priority: 2
         }, () => {
-          void api2.runtime?.lastError;
+          void api4.runtime?.lastError;
           resolve();
         });
       } catch (e) {
@@ -208,13 +211,13 @@
     }
   }
   async function openAddWindow() {
-    const api2 = extensionApi();
-    if (!api2) return { opened: "none", error: "\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043A API \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F." };
+    const api4 = extensionApi();
+    if (!api4) return { opened: "none", error: "\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043A API \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u044F." };
     await markAddEntry();
     const errors = [];
-    if (api2.action?.openPopup) {
+    if (api4.action?.openPopup) {
       try {
-        await Promise.resolve(api2.action.openPopup());
+        await Promise.resolve(api4.action.openPopup());
         trace("\u0444\u043E\u0440\u043C\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u0447\u0435\u0440\u0435\u0437 action.openPopup");
         return { opened: "popup" };
       } catch (e) {
@@ -222,10 +225,10 @@
         trace("action.openPopup \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B", errorText(e));
       }
     }
-    const url = api2.runtime?.getURL ? api2.runtime.getURL("popup.html?new=1") : "popup.html?new=1";
-    if (api2.windows?.create) {
+    const url = api4.runtime?.getURL ? api4.runtime.getURL("popup.html?new=1") : "popup.html?new=1";
+    if (api4.windows?.create) {
       try {
-        await Promise.resolve(api2.windows.create({ url, type: "popup", width: ADD_WINDOW.width, height: ADD_WINDOW.height, focused: true }));
+        await Promise.resolve(api4.windows.create({ url, type: "popup", width: ADD_WINDOW.width, height: ADD_WINDOW.height, focused: true }));
         trace("\u0444\u043E\u0440\u043C\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u043C \u043E\u043A\u043D\u043E\u043C");
         return { opened: "window" };
       } catch (e) {
@@ -233,9 +236,9 @@
         trace("windows.create \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B", errorText(e));
       }
     }
-    if (api2.tabs?.create) {
+    if (api4.tabs?.create) {
       try {
-        await Promise.resolve(api2.tabs.create({ url }));
+        await Promise.resolve(api4.tabs.create({ url }));
         trace("\u0444\u043E\u0440\u043C\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u043E\u0439");
         return { opened: "tab" };
       } catch (e) {
@@ -246,10 +249,10 @@
     return { opened: "none", error: errors.join("; ") || "\u041D\u0438 \u043E\u0434\u0438\u043D \u0441\u043F\u043E\u0441\u043E\u0431 \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u044F \u043E\u043A\u043D\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D." };
   }
   async function clearNotification(id) {
-    const api2 = extensionApi();
-    if (!api2?.notifications?.clear) return;
+    const api4 = extensionApi();
+    if (!api4?.notifications?.clear) return;
     try {
-      await Promise.resolve(api2.notifications.clear(id));
+      await Promise.resolve(api4.notifications.clear(id));
     } catch (e) {
     }
   }
@@ -277,27 +280,344 @@
     await saveReminderEvent({ kind: "closed", at: Date.now(), notificationId: id, action: byUser ? "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u043C." : "\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E \u0441\u0438\u0441\u0442\u0435\u043C\u043E\u0439." });
   }
 
+  // src/autotrack-storage.ts
+  var SETTINGS_KEY = "autotrackSettings";
+  var STATE_KEY = "autotrackJson";
+  var DEFAULT_SETTINGS2 = { enabled: true, uploadEveryMinutes: 60, rootPath: "disk:/\u0418\u0442\u043E\u0433\u0438 \u0434\u043D\u044F" };
+  function storage2() {
+    const g = globalThis;
+    return (g.browser ?? g.chrome)?.storage?.local ?? null;
+  }
+  async function get2(key, fallback) {
+    const s = storage2();
+    if (s?.get) {
+      const value = await Promise.resolve(s.get(key));
+      return value?.[key] ?? fallback;
+    }
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  async function set2(key, value) {
+    const s = storage2();
+    if (s?.set) {
+      await Promise.resolve(s.set({ [key]: value }));
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+  async function getAutoTrackSettings() {
+    const value = await get2(SETTINGS_KEY, {});
+    const interval = Number(value.uploadEveryMinutes);
+    return {
+      enabled: typeof value.enabled === "boolean" ? value.enabled : DEFAULT_SETTINGS2.enabled,
+      uploadEveryMinutes: Number.isFinite(interval) && interval >= 5 ? Math.min(1440, Math.floor(interval)) : DEFAULT_SETTINGS2.uploadEveryMinutes,
+      rootPath: typeof value.rootPath === "string" && value.rootPath.trim() ? value.rootPath.trim() : DEFAULT_SETTINGS2.rootPath
+    };
+  }
+  async function getAutoTrackState() {
+    return get2(STATE_KEY, { days: {}, active: null });
+  }
+  async function saveAutoTrackState(value) {
+    await set2(STATE_KEY, value);
+  }
+
+  // src/yandex.ts
+  async function api(url, init = {}) {
+    const token = await getToken();
+    if (!token) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D.");
+    const h = new Headers(init.headers);
+    h.set("Authorization", "OAuth " + token);
+    const r = await fetch(url, { ...init, headers: h });
+    if (r.status === 401) throw new Error("\u0422\u043E\u043A\u0435\u043D \u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A\u0430 \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u0435\u043D. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 \u0437\u0430\u043D\u043E\u0432\u043E.");
+    return r;
+  }
+  async function href(op, path, extra = "") {
+    const r = await api("https://cloud-api.yandex.net/v1/disk/" + op + "?path=" + encodeURIComponent(path) + extra);
+    if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A: HTTP " + r.status + " " + await r.text());
+    const j = await r.json();
+    if (!j.href) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u0441\u0441\u044B\u043B\u043A\u0443 \u043E\u043F\u0435\u0440\u0430\u0446\u0438\u0438.");
+    return j.href;
+  }
+  async function folderExists(path) {
+    const r = await api("https://cloud-api.yandex.net/v1/disk/resources?path=" + encodeURIComponent(path));
+    if (r.status === 404) return false;
+    if (!r.ok) throw new Error("\u042F\u043D\u0434\u0435\u043A\u0441 \u0414\u0438\u0441\u043A: HTTP " + r.status + " " + await r.text());
+    return (await r.json()).type === "dir";
+  }
+  async function ensureFolder(path) {
+    const r = await api("https://cloud-api.yandex.net/v1/disk/resources?path=" + encodeURIComponent(path), { method: "PUT" });
+    if (r.ok) return;
+    if (r.status === 409 && await folderExists(path)) return;
+    throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0437\u0434\u0430\u0442\u044C \u043F\u0430\u043F\u043A\u0443 " + path + ": HTTP " + r.status + " " + await r.text());
+  }
+  async function uploadAutotrackJson(path, content) {
+    const r = await api(await href("resources/upload", path, "&overwrite=true"), { method: "PUT", headers: { "Content-Type": "application/json; charset=utf-8" }, body: content });
+    if (!r.ok) throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0430\u0432\u0442\u043E\u0442\u0440\u0435\u043A\u0438\u043D\u0433 \u0432 " + path + ": HTTP " + r.status + " " + await r.text());
+  }
+
+  // src/autotrack.ts
+  var ALARM = "photoday-autotrack-upload";
+  var MIN_DURATION_SECONDS = 180;
+  var IDLE_THRESHOLD_SECONDS = 60;
+  var initialized = false;
+  var state = { days: {}, active: null };
+  var browserFocused = true;
+  var idleState = "active";
+  var queue = Promise.resolve();
+  var initialization = Promise.resolve();
+  function api2() {
+    const g = globalThis;
+    return g.browser ?? g.chrome ?? null;
+  }
+  function localDay(ms) {
+    const d = new Date(ms);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function safeUrl(raw) {
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return raw;
+      for (const key of [...u.searchParams.keys()]) if (/token|secret|password|passwd|auth|session|code|key/i.test(key)) u.searchParams.delete(key);
+      u.hash = "";
+      return u.toString();
+    } catch {
+      return raw;
+    }
+  }
+  function enqueue(work) {
+    queue = queue.then(work).catch((error) => {
+      console.warn("[photoday-autotrack]", error);
+    });
+    return queue;
+  }
+  async function persist() {
+    await saveAutoTrackState(state);
+  }
+  async function recordCurrent(now = Date.now()) {
+    const current = state.active;
+    if (!current) return;
+    const record = {
+      url: current.url,
+      title: current.title,
+      openedAt: new Date(current.openedAtMs).toISOString(),
+      durationSeconds: Math.max(0, Math.floor((now - current.openedAtMs) / 1e3))
+    };
+    const day = localDay(current.openedAtMs);
+    const records = state.days[day] ?? (state.days[day] = []);
+    const existing = records.findIndex((x) => x.openedAt === record.openedAt && x.url === record.url);
+    if (existing >= 0) records[existing] = record;
+    else records.push(record);
+  }
+  async function closeSession(now = Date.now()) {
+    if (!state.active) return;
+    await recordCurrent(now);
+    state.active = null;
+    await persist();
+  }
+  async function beginSession(tab) {
+    if (!tab || typeof tab.id !== "number" || !browserFocused || idleState !== "active" || !tab.url || !/^https?:/i.test(tab.url)) return;
+    state.active = { tabId: tab.id, windowId: Number(tab.windowId) || -1, url: safeUrl(String(tab.url)), title: String(tab.title ?? ""), openedAtMs: Date.now() };
+    await persist();
+  }
+  async function currentTab() {
+    const a = api2();
+    if (!a?.tabs?.query) return null;
+    try {
+      const tabs = await Promise.resolve(a.tabs.query({ active: true, lastFocusedWindow: true }));
+      return Array.isArray(tabs) ? tabs[0] ?? null : null;
+    } catch {
+      return null;
+    }
+  }
+  async function syncActiveTab() {
+    await closeSession();
+    if (!browserFocused || idleState !== "active") return;
+    await beginSession(await currentTab());
+  }
+  async function onActivated(info) {
+    await closeSession();
+    if (!browserFocused || idleState !== "active") return;
+    const a = api2();
+    try {
+      await beginSession(await Promise.resolve(a?.tabs?.get?.(Number(info.tabId))));
+    } catch {
+      state.active = null;
+      await persist();
+    }
+  }
+  async function onUpdated(tabId, change, tab) {
+    const active = state.active;
+    if (!active || active.tabId !== tabId) return;
+    const updatedUrl = typeof change.url === "string" ? change.url : typeof tab?.url === "string" ? tab.url : "";
+    if (updatedUrl && safeUrl(updatedUrl) !== active.url) {
+      await closeSession();
+      await beginSession({ ...tab, url: updatedUrl });
+      return;
+    }
+    if (typeof change.title === "string" && change.title !== active.title) {
+      active.title = change.title;
+      await persist();
+    }
+  }
+  async function onRemoved(tabId) {
+    if (state.active?.tabId === tabId) await closeSession();
+  }
+  async function onWindowFocusChanged(windowId) {
+    browserFocused = windowId !== -1;
+    if (!browserFocused) {
+      await closeSession();
+      return;
+    }
+    await syncActiveTab();
+  }
+  async function onIdleStateChanged(value) {
+    idleState = value === "active" ? "active" : value === "locked" ? "locked" : "idle";
+    if (idleState !== "active") {
+      await closeSession();
+      return;
+    }
+    await syncActiveTab();
+  }
+  function uploadPath(root, day) {
+    return root.replace(/\/+$/, "") + "/" + day + "/autotrack/autotrack.json";
+  }
+  async function ensurePath(path) {
+    const normalized = path.trim().replace(/^disk:/i, "").replace(/^\/+|\/+$/g, "");
+    let current = "disk:/";
+    for (const segment of normalized.split("/").filter(Boolean)) {
+      current += (current.endsWith("/") ? "" : "/") + segment;
+      await ensureFolder(current);
+    }
+  }
+  async function uploadDay(day) {
+    const records = (state.days[day] ?? []).filter((x) => x.durationSeconds > MIN_DURATION_SECONDS);
+    if (!records.length) return;
+    const settings = await getAutoTrackSettings();
+    if (!settings.enabled) return;
+    const root = settings.rootPath.trim().replace(/\/+$/, "");
+    const path = uploadPath(root, day);
+    const autoFolder = path.slice(0, path.lastIndexOf("/"));
+    const dateFolder = autoFolder.slice(0, autoFolder.lastIndexOf("/"));
+    await ensurePath(root);
+    await ensureFolder(dateFolder);
+    await ensureFolder(autoFolder);
+    const payload = { date: day, generatedAt: (/* @__PURE__ */ new Date()).toISOString(), minimumSessionSeconds: MIN_DURATION_SECONDS, records: [...records].sort((a, b) => a.openedAt.localeCompare(b.openedAt)) };
+    await uploadAutotrackJson(path, JSON.stringify(payload, null, 2));
+  }
+  async function uploadAutotrackNow() {
+    await recordCurrent();
+    await persist();
+    const settings = await getAutoTrackSettings();
+    if (!settings.enabled) return;
+    for (const day of Object.keys(state.days).sort()) await uploadDay(day);
+    state.lastUploadedAt = Date.now();
+    state.lastError = "";
+    await persist();
+  }
+  async function syncAutoTrackAlarm() {
+    const a = api2();
+    if (!a?.alarms) return;
+    const settings = await getAutoTrackSettings();
+    try {
+      await Promise.resolve(a.alarms.clear(ALARM));
+    } catch {
+    }
+    if (settings.enabled) a.alarms.create(ALARM, { delayInMinutes: settings.uploadEveryMinutes, periodInMinutes: settings.uploadEveryMinutes });
+  }
+  async function handleAutoTrackAlarm(name) {
+    if (name !== ALARM) return;
+    await enqueue(async () => {
+      await initialization;
+      try {
+        await uploadAutotrackNow();
+      } catch (e) {
+        state.lastError = e instanceof Error ? e.message : String(e);
+        await persist();
+      }
+    });
+  }
+  async function initAutoTrack() {
+    if (initialized) return;
+    initialized = true;
+    const a = api2();
+    if (!a) return;
+    a.tabs?.onActivated?.addListener((info) => void enqueue(async () => {
+      await initialization;
+      await onActivated(info);
+    }));
+    a.tabs?.onUpdated?.addListener((id, change, tab) => void enqueue(async () => {
+      await initialization;
+      await onUpdated(id, change, tab);
+    }));
+    a.tabs?.onRemoved?.addListener((id) => void enqueue(async () => {
+      await initialization;
+      await onRemoved(id);
+    }));
+    a.windows?.onFocusChanged?.addListener((id) => void enqueue(async () => {
+      await initialization;
+      await onWindowFocusChanged(id);
+    }));
+    a.idle?.onStateChanged?.addListener((value) => void enqueue(async () => {
+      await initialization;
+      await onIdleStateChanged(value);
+    }));
+    initialization = (async () => {
+      const saved = await getAutoTrackState();
+      state = { days: saved.days ?? {}, active: saved.active ?? null, lastUploadedAt: saved.lastUploadedAt, lastError: saved.lastError };
+      try {
+        if (a.idle?.setDetectionInterval) a.idle.setDetectionInterval(IDLE_THRESHOLD_SECONDS);
+        if (a.idle?.queryState) idleState = await Promise.resolve(a.idle.queryState(IDLE_THRESHOLD_SECONDS));
+      } catch {
+      }
+      try {
+        const focused = await Promise.resolve(a.windows?.getLastFocused?.());
+        browserFocused = !!focused && focused.id !== -1;
+      } catch {
+        browserFocused = true;
+      }
+      const tab = await currentTab();
+      if (state.active && tab && state.active.tabId === tab.id && safeUrl(String(tab.url ?? "")) === state.active.url && browserFocused && idleState === "active") {
+        state.active.title = String(tab.title ?? state.active.title);
+        await persist();
+      } else {
+        await closeSession();
+        await beginSession(tab);
+      }
+    })();
+    await initialization;
+  }
+
   // src/background.ts
-  var api = extensionApi();
-  if (api) {
-    api.runtime?.onInstalled?.addListener(() => {
+  var api3 = extensionApi();
+  if (api3) {
+    api3.runtime?.onInstalled?.addListener(() => {
       void syncReminderAlarm();
+      void syncAutoTrackAlarm();
     });
-    api.runtime?.onStartup?.addListener(() => {
+    api3.runtime?.onStartup?.addListener(() => {
       void syncReminderAlarm();
+      void syncAutoTrackAlarm();
     });
-    api.alarms?.onAlarm?.addListener((alarm) => {
-      void handleReminderAlarm(String(alarm?.name ?? ""));
+    api3.alarms?.onAlarm?.addListener((alarm) => {
+      const name = String(alarm?.name ?? "");
+      void handleReminderAlarm(name);
+      void handleAutoTrackAlarm(name);
     });
-    api.notifications?.onButtonClicked?.addListener((id, index) => {
+    api3.notifications?.onButtonClicked?.addListener((id, index) => {
       void handleNotificationButton(String(id ?? ""), Number(index) || 0);
     });
-    api.notifications?.onClicked?.addListener((id) => {
+    api3.notifications?.onClicked?.addListener((id) => {
       void handleNotificationClick(String(id ?? ""));
     });
-    api.notifications?.onClosed?.addListener((id, byUser) => {
+    api3.notifications?.onClosed?.addListener((id, byUser) => {
       void handleNotificationClosed(String(id ?? ""), Boolean(byUser));
     });
     void syncReminderAlarm();
+    void syncAutoTrackAlarm();
+    void initAutoTrack();
   }
 })();
