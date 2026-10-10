@@ -353,7 +353,8 @@ private fun MainScreen(
                 }
 
 
-                Button(onClick = onDailyReflection, Modifier.fillMaxWidth()) { Text("🎙 Итоги дня", fontSize = 18.sp) }\n                Button(onClick = onAdd, Modifier.fillMaxWidth()) { Text("＋ Новая задача") }            }
+                Button(onClick = onDailyReflection, Modifier.fillMaxWidth()) { Text("🎙 Итоги дня", fontSize = 18.sp) }
+                Button(onClick = onAdd, Modifier.fillMaxWidth()) { Text("＋ Новая задача") }            }
         }
     }
 }
